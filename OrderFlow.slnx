@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="docker-compose.yml" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/OrderFlow.Api/OrderFlow.Api.csproj" />
+    <Project Path="src/OrderFlow.Application/OrderFlow.Application.csproj" />
+    <Project Path="src/OrderFlow.Domain/OrderFlow.Domain.csproj" />
+    <Project Path="src/OrderFlow.Infrastructure/OrderFlow.Infrastructure.csproj" />
+    <Project Path="src/OrderFlow.Worker.Inbox/OrderFlow.Worker.Inbox.csproj" />
+    <Project Path="src/OrderFlow.Worker.Outbox/OrderFlow.Worker.Outbox.csproj" />
+    <Project Path="src/OrderFlow.Worker.Payments/OrderFlow.Worker.Payments.csproj" />
+  </Folder>
+</Solution>
