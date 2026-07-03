@@ -93,5 +93,27 @@ namespace OrderFlow.Domain.Entities
             RecalculateTotal();
 
         }
+
+        public void Cancel()
+        {
+            if (Status == OrderStatus.CANCELLED)
+                throw new InvalidOperationException("Order is already cancelled.");
+
+            if (Status == OrderStatus.PAID)
+                throw new InvalidOperationException("Paid orders cannot be cancelled.");
+
+            Status = OrderStatus.CANCELLED;
+        }
+
+        public void MarkAsPaid()
+        {
+            if (Status == OrderStatus.CANCELLED)
+                throw new InvalidOperationException("Cancelled orders cannot be marked as paid.");
+
+            if (Status == OrderStatus.PAID)
+                throw new InvalidOperationException("Order is already marked as paid.");
+
+            Status = OrderStatus.PAID;
+        }
     }
 }
