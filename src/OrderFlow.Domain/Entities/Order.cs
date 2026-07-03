@@ -19,7 +19,7 @@ namespace OrderFlow.Domain.Entities
 
         private Order() { }
 
-        public Order(Guid customerId)
+        public Order(Guid customerId, Guid productId, int quantity, decimal unitPrice)
         {
             if (customerId == Guid.Empty)
                 throw new ArgumentException("CustomerId cannot be empty.", nameof(customerId));
@@ -27,7 +27,8 @@ namespace OrderFlow.Domain.Entities
             CustomerId = customerId;
             CreatedAt = DateTime.UtcNow;
             Status = OrderStatus.PENDING;
-            TotalAmount = 0;
+
+            AddItem(productId, quantity, unitPrice);
         }
 
         public void AddItem(Guid productId, int quantity, decimal unitPrice)
