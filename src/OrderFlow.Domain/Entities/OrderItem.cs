@@ -1,4 +1,5 @@
 ﻿using OrderFlow.Domain.Abstractions;
+using OrderFlow.Domain.Exceptions;
 
 namespace OrderFlow.Domain.Entities;
 
@@ -53,18 +54,18 @@ public sealed class OrderItem : Entity
     private static void ValidateProductId(Guid productId)
     {
         if (productId == Guid.Empty)
-            throw new ArgumentException("ProductId cannot be empty.", nameof(productId));
+            throw new DomainException($"ProductId cannot be empty: {nameof(productId)}");
     }
 
     private static void ValidateQuantity(int quantity)
     {
         if (quantity <= 0)
-            throw new ArgumentOutOfRangeException(nameof(quantity), "Quantity must be greater than zero.");
+            throw new DomainException($"{nameof(quantity)}: Quantity must be greater than zero.");
     }
 
     private static void ValidateUnitPrice(decimal unitPrice)
     {
         if (unitPrice <= 0)
-            throw new ArgumentOutOfRangeException(nameof(unitPrice), "Unit price must be greater than zero.");
+            throw new DomainException($"{nameof(unitPrice)}: Unit price must be greater than zero.");
     }
 }

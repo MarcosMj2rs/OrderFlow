@@ -1,5 +1,6 @@
 ﻿using OrderFlow.Domain.Abstractions;
 using OrderFlow.Domain.Enumerations;
+using OrderFlow.Domain.Exceptions;
 
 namespace OrderFlow.Domain.Entities
 {
@@ -22,7 +23,7 @@ namespace OrderFlow.Domain.Entities
         public Order(Guid customerId, Guid productId, int quantity, decimal unitPrice)
         {
             if (customerId == Guid.Empty)
-                throw new ArgumentException("CustomerId cannot be empty.", nameof(customerId));
+                throw new DomainException($"CustomerId cannot be empty: {nameof(customerId)}");
 
             CustomerId = customerId;
             CreatedAt = DateTime.UtcNow;
@@ -34,7 +35,7 @@ namespace OrderFlow.Domain.Entities
         public void AddItem(Guid productId, int quantity, decimal unitPrice)
         {
             if (Status == OrderStatus.CANCELLED)
-                throw new InvalidOperationException("Cannot add items to a cancelled order.");
+                throw new DomainException("Cannot add items to a cancelled order.");
 
             var existingItem = _items.FirstOrDefault(i => i.ProductId == productId);
 
@@ -63,15 +64,15 @@ namespace OrderFlow.Domain.Entities
         public void RemoverItem(Guid productId)
         {
             if (Status == OrderStatus.CANCELLED)
-                throw new InvalidOperationException("Cannot remove items from a cancelled order.");
+                throw new DomainException("Cannot remove items from a cancelled order.");
 
             var item = _items.FirstOrDefault(x => x.ProductId == productId);
 
             if (item is null)
-                throw new InvalidOperationException("Product not found in the order.");
+                throw new DomainException("Product not found in the order.");
 
             if (_items.Count == 1)
-                throw new InvalidOperationException("An order must contain at least one item.");
+                throw new DomainException("An order must contain at least one item.");
 
             _items.Remove(item);
 
@@ -81,12 +82,12 @@ namespace OrderFlow.Domain.Entities
         public void ChangeItemQuantity(Guid productId, int quantity)
         {
             if (Status == OrderStatus.CANCELLED)
-                throw new InvalidOperationException("Cannot change items from a cancelled order.");
+                throw new DomainException("Cannot change items from a cancelled order.");
 
             var item = _items.FirstOrDefault(x => x.ProductId == productId);
 
             if (item is null)
-                throw new InvalidOperationException("Product not found in the order.");
+                throw new DomainException("Product not found in the order.");
 
             item.ChangeQuantity(quantity);
 
@@ -97,10 +98,10 @@ namespace OrderFlow.Domain.Entities
         public void Cancel()
         {
             if (Status == OrderStatus.CANCELLED)
-                throw new InvalidOperationException("Order is already cancelled.");
+                throw new DomainException("Order is already cancelled.");
 
             if (Status == OrderStatus.PAID)
-                throw new InvalidOperationException("Paid orders cannot be cancelled.");
+                throw new DomainException("Paid orders cannot be cancelled.");
 
             Status = OrderStatus.CANCELLED;
         }
@@ -108,10 +109,10 @@ namespace OrderFlow.Domain.Entities
         public void MarkAsPaid()
         {
             if (Status == OrderStatus.CANCELLED)
-                throw new InvalidOperationException("Cancelled orders cannot be marked as paid.");
+                throw new DomainException("Cancelled orders cannot be marked as paid.");
 
             if (Status == OrderStatus.PAID)
-                throw new InvalidOperationException("Order is already marked as paid.");
+                throw new DomainException("Order is already marked as paid.");
 
             Status = OrderStatus.PAID;
         }
