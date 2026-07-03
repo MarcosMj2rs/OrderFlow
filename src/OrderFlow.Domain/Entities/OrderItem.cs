@@ -15,7 +15,7 @@ public sealed class OrderItem : Entity
 
     private OrderItem() { }
 
-    public OrderItem(Guid productId, int quantity, decimal unitPrice)
+    internal OrderItem(Guid productId, int quantity, decimal unitPrice)
     {
         ValidateProductId(productId);
         ValidateQuantity(quantity);
@@ -28,7 +28,7 @@ public sealed class OrderItem : Entity
         RecalculateTotal();
     }
 
-    public void ChangeQuantity(int quantity)
+    internal void ChangeQuantity(int quantity)
     {
         ValidateQuantity(quantity);
 
@@ -37,7 +37,7 @@ public sealed class OrderItem : Entity
         RecalculateTotal();
     }
 
-    public void ChangeUnitPrice(decimal unitPrice)
+    internal void ChangeUnitPrice(decimal unitPrice)
     {
         ValidateUnitPrice(unitPrice);
 
