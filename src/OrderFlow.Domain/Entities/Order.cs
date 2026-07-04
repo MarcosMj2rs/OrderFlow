@@ -1,6 +1,7 @@
 ﻿using OrderFlow.Domain.Abstractions;
 using OrderFlow.Domain.Enumerations;
 using OrderFlow.Domain.Exceptions;
+using OrderFlow.Domain.Events;
 
 namespace OrderFlow.Domain.Entities
 {
@@ -30,6 +31,8 @@ namespace OrderFlow.Domain.Entities
             Status = OrderStatus.PENDING;
 
             AddItem(productId, quantity, unitPrice);
+
+            RaiseDomainEvent(new OrderCreatedDomainEvent(Id, CustomerId, TotalAmount));
         }
 
         public void AddItem(Guid productId, int quantity, decimal unitPrice)
@@ -104,17 +107,21 @@ namespace OrderFlow.Domain.Entities
                 throw new DomainException("Paid orders cannot be cancelled.");
 
             Status = OrderStatus.CANCELLED;
+
+            RaiseDomainEvent(new OrderCancelledDomainEvent(Id, CustomerId, TotalAmount));
         }
 
         public void Pay()
         {
             if (Status == OrderStatus.CANCELLED)
-                throw new DomainException("Cancelled orders cannot be marked as paid.");
+                throw new DomainException("Cancelled orders cannot be paid.");
 
             if (Status == OrderStatus.PAID)
-                throw new DomainException("Order is already marked as paid.");
+                throw new DomainException("Order is already paid.");
 
             Status = OrderStatus.PAID;
+
+            RaiseDomainEvent(new OrderPaidDomainEvent(Id, CustomerId, TotalAmount));
         }
 
         private OrderItem? FindItem(Guid productId)

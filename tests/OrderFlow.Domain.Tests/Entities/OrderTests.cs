@@ -1,6 +1,7 @@
 ﻿using FluentAssertions;
 using OrderFlow.Domain.Entities;
 using OrderFlow.Domain.Enumerations;
+using OrderFlow.Domain.Events;
 using OrderFlow.Domain.Exceptions;
 
 namespace OrderFlow.Domain.Tests.Entities
@@ -81,6 +82,59 @@ namespace OrderFlow.Domain.Tests.Entities
 
             // Assert
             act.Should().Throw<DomainException>().WithMessage("An order must contain at least one item.");
+        }
+
+        [Fact]
+        public void Should_Raise_OrderCreatedDomainEvent_When_Order_Is_Created()
+        {
+            // Arrange
+            var customerId = Guid.NewGuid();
+            var productId = Guid.NewGuid();
+
+            // Act
+            var order = new Order(customerId, productId, quantity: 2, unitPrice: 100m);
+
+            // Assert
+            order.DomainEvents.Should().ContainSingle();
+            var domainEvent = order.DomainEvents.Single();
+            domainEvent.Should().BeOfType<OrderCreatedDomainEvent>();
+        }
+
+        [Fact]
+        public void Should_Raise_OrderPaidDomainEvent_When_Order_Is_Paid()
+        {
+            // Arrange
+            var customerId = Guid.NewGuid();
+            var productId = Guid.NewGuid();
+            var order = new Order(customerId, productId, quantity: 2, unitPrice: 100m);
+
+            order.ClearDomainEvents();
+
+            // Act
+            order.Pay();
+
+            // Assert
+            order.DomainEvents.Should().ContainSingle();
+            var domainEvent = order.DomainEvents.Single();
+            domainEvent.Should().BeOfType<OrderPaidDomainEvent>();
+        }
+
+        [Fact]
+        public void Should_Raise_OrderCancelledDomainEvent_When_Order_Is_Cancelled()
+        {
+            // Arrange
+            var customerId = Guid.NewGuid();
+            var productId = Guid.NewGuid();
+            var order = new Order(customerId, productId, quantity: 2, unitPrice: 100m);
+            order.ClearDomainEvents();
+
+            // Act
+            order.Cancel();
+
+            // Assert
+            order.DomainEvents.Should().ContainSingle();
+            var domainEvent = order.DomainEvents.Single();
+            domainEvent.Should().BeOfType<OrderCancelledDomainEvent>();
         }
     }
 }
