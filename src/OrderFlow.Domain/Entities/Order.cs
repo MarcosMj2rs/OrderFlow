@@ -66,7 +66,7 @@ namespace OrderFlow.Domain.Entities
             if (Status == OrderStatus.CANCELLED)
                 throw new DomainException("Cannot remove items from a cancelled order.");
 
-            var item = _items.FirstOrDefault(x => x.ProductId == productId);
+            var item = FindItem(productId);
 
             if (item is null)
                 throw new DomainException("Product not found in the order.");
@@ -84,7 +84,7 @@ namespace OrderFlow.Domain.Entities
             if (Status == OrderStatus.CANCELLED)
                 throw new DomainException("Cannot change items from a cancelled order.");
 
-            var item = _items.FirstOrDefault(x => x.ProductId == productId);
+            var item = FindItem(productId);
 
             if (item is null)
                 throw new DomainException("Product not found in the order.");
@@ -106,7 +106,7 @@ namespace OrderFlow.Domain.Entities
             Status = OrderStatus.CANCELLED;
         }
 
-        public void MarkAsPaid()
+        public void Pay()
         {
             if (Status == OrderStatus.CANCELLED)
                 throw new DomainException("Cancelled orders cannot be marked as paid.");
@@ -115,6 +115,11 @@ namespace OrderFlow.Domain.Entities
                 throw new DomainException("Order is already marked as paid.");
 
             Status = OrderStatus.PAID;
+        }
+
+        private OrderItem? FindItem(Guid productId)
+        {
+            return _items.FirstOrDefault(x => x.ProductId == productId);
         }
     }
 }
