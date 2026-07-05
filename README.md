@@ -22,10 +22,19 @@
 | Documentação Inicial | ✅ |
 | Modelagem do Domínio | ✅ |
 | Testes Unitários do Domínio | ✅ |
-| Domain Events | ⏳ |
-| Application (CQRS) | ⏳ |
-| Persistência | ⏳ |
-| Outbox | ⏳ |
+| Domain Events | ✅ |
+| CQRS | ⏳ |
+| Entity Framework Core | ⏳ |
+| SQL Server | ⏳ |
 | RabbitMQ | ⏳ |
-| Inbox | ⏳ |
+| Outbox Pattern | ⏳ |
+| Inbox Pattern | ⏳ |
 | Idempotência | ⏳ |
+| Retry | ⏳ |
+| Dead Letter Queue | ⏳ |
+| Saga | ⏳ |
+| Observabilidade | ⏳ |
+| Testcontainers | ⏳ |
+| OpenTelemetry | ⏳ |
+| Versionamento de Eventos | ⏳ |
+| Change Tracking e Aggregates | ⏳ |
