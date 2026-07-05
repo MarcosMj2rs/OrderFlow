@@ -47,3 +47,31 @@ Foi adotado CQRS utilizando MediatR.
 Cada caso de uso será tratado individualmente.
 
 A lógica de negócio continuará centralizada no Domain.
+
+---
+
+## Decisões complementares
+
+Durante a implementação foram adotadas as seguintes decisões arquiteturais.
+
+### ValidationBehavior
+
+A validação ocorre antes da execução dos Handlers.
+
+Dessa forma, os Handlers podem assumir que os Commands recebidos são válidos.
+
+---
+
+### Unit of Work
+
+Foi criada uma abstração própria para ocultar detalhes do Entity Framework Core.
+
+A camada Application não conhece DbContext.
+
+---
+
+### Repositories
+
+Os Handlers dependem apenas de interfaces.
+
+Nenhum Handler possui dependência direta de infraestrutura.

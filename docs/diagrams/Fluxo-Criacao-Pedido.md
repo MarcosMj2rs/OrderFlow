@@ -1,23 +1,23 @@
-# Fluxo de Criação de Pedido
+# Fluxo dos Casos de Uso
 
 ```mermaid
 flowchart TD
 
 A[Controller]
 
---> B[CreateOrderCommand]
+--> B[Command]
 
 --> C[ValidationBehavior]
 
 --> D[Validator]
 
---> E[CreateOrderCommandHandler]
+--> E[Handler]
 
---> F[Order]
+--> F[Aggregate]
 
---> G[IOrderRepository]
+--> G[Repository]
 
---> H[IUnitOfWork]
+--> H[UnitOfWork]
 
 --> I[Response]
 ```

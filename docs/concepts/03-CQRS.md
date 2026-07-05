@@ -121,11 +121,37 @@ Response
 
 ---
 
-## 6. Componentes
+## 6. Casos de uso implementados
 
-### Command
+Atualmente a camada Application possui os seguintes casos de uso:
 
-Representa uma intenção de negócio.
+### CreateOrder
+
+Responsável pela criação de um novo pedido.
+
+Fluxo:
+
+- valida o Command;
+- cria o Aggregate Order;
+- persiste utilizando o Repository;
+- confirma a operação através do Unit of Work.
+
+---
+
+### CancelOrder
+
+Responsável pelo cancelamento de um pedido existente.
+
+Fluxo:
+
+- localiza o Aggregate;
+- verifica sua existência;
+- executa o comportamento Cancel();
+- persiste utilizando o Unit of Work.
+
+Observe que o Handler não altera diretamente propriedades da entidade.
+
+Toda regra permanece encapsulada no Aggregate.
 
 ---
 
@@ -145,13 +171,29 @@ Não substitui as validações do domínio.
 
 ---
 
-### Pipeline Behavior
+## Validation Behavior
 
-Executa comportamentos transversais antes e depois dos Handlers.
+O projeto utiliza um Pipeline Behavior do MediatR responsável por executar automaticamente todos os Validators registrados antes da execução do Handler.
 
-No OrderFlow foi implementado:
+Fluxo:
 
-- ValidationBehavior
+```text
+Command
+
+↓
+
+ValidationBehavior
+
+↓
+
+Validator
+
+↓
+
+Handler
+```
+
+Caso a validação falhe, o Handler não é executado.
 
 ---
 
@@ -207,3 +249,19 @@ O CQRS permitiu organizar a camada Application em pequenos casos de uso independ
 - DEC-003-Por-que-CQRS
 - 02-Domain-Driven-Design
 - 07-Domain-Events
+
+---
+
+## Unit of Work
+
+Foi criada a abstração IUnitOfWork.
+
+Seu objetivo é desacoplar a camada Application do Entity Framework Core.
+
+A Application apenas solicita:
+
+```csharp
+await _unitOfWork.SaveChangesAsync();
+```
+
+A implementação concreta será responsabilidade da Infrastructure.

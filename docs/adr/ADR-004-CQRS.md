@@ -46,3 +46,18 @@ Todos os casos de uso serão organizados por Feature.
 
 - Concepts/03-CQRS
 - DEC-003-Por-que-CQRS
+
+---
+
+## Evolução
+
+Após a implementação inicial, foram adicionados os seguintes componentes:
+
+- ValidationBehavior
+- IUnitOfWork
+- CreateOrder
+- CancelOrder
+
+Todos os casos de uso permanecem organizados por Feature.
+
+Cada Handler possui responsabilidade única de orquestração.

@@ -85,3 +85,17 @@ Componente do MediatR responsável por executar comportamentos transversais ante
 Exemplo:
 
 - ValidationBehavior
+
+---
+
+## Unit of Work
+
+Abstração responsável por confirmar as alterações realizadas durante um caso de uso.
+
+No OrderFlow ela desacopla a camada Application do Entity Framework Core.
+
+---
+
+## Validation Behavior
+
+Pipeline Behavior do MediatR responsável por executar automaticamente todos os Validators antes dos Handlers.
