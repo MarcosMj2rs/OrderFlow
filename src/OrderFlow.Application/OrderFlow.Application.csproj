@@ -16,7 +16,6 @@
     <Folder Include="Common\" />
     <Folder Include="Extensions\" />
     <Folder Include="Features\Mappings\" />
-    <Folder Include="Features\Orders\Commands\CancelOrder\" />
     <Folder Include="Features\Orders\Commands\PayOrder\" />
     <Folder Include="Features\Orders\Queries\GetOrderById\" />
     <Folder Include="Features\Orders\Queries\GetOrders\" />
