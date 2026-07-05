@@ -23,7 +23,7 @@
 | Modelagem do Domínio | ✅ |
 | Testes Unitários do Domínio | ✅ |
 | Domain Events | ✅ |
-| CQRS | ⏳ |
+| CQRS | ✅ |
 | Entity Framework Core | ⏳ |
 | SQL Server | ⏳ |
 | RabbitMQ | ⏳ |

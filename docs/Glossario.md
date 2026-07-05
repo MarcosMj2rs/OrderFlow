@@ -49,3 +49,39 @@ Exemplos:
 ## Domain Exception
 
 Exceção utilizada para representar violações de regras de negócio do domínio.
+
+## CQRS
+
+Padrão arquitetural que separa operações de escrita (Commands) das operações de leitura (Queries).
+
+---
+
+## Command
+
+Representa uma intenção de alterar o estado do sistema.
+
+---
+
+## Query
+
+Representa uma consulta.
+
+Nunca altera o estado do domínio.
+
+---
+
+## Handler
+
+Responsável por orquestrar um caso de uso.
+
+Não contém regras de negócio.
+
+---
+
+## Pipeline Behavior
+
+Componente do MediatR responsável por executar comportamentos transversais antes ou depois dos Handlers.
+
+Exemplo:
+
+- ValidationBehavior

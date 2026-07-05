@@ -1,5 +1,23 @@
-# ADR-001 - Princípios Arquiteturais
+# Fluxo de Criação de Pedido
 
-Status: Aceita
+```mermaid
+flowchart TD
 
-> Em construção...
+A[Controller]
+
+--> B[CreateOrderCommand]
+
+--> C[ValidationBehavior]
+
+--> D[Validator]
+
+--> E[CreateOrderCommandHandler]
+
+--> F[Order]
+
+--> G[IOrderRepository]
+
+--> H[IUnitOfWork]
+
+--> I[Response]
+```
