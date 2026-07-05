@@ -10,6 +10,18 @@
     <PackageReference Include="MediatR" Version="14.1.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Abstractions\Messaging\" />
+    <Folder Include="Abstractions\Services\" />
+    <Folder Include="Common\" />
+    <Folder Include="Extensions\" />
+    <Folder Include="Features\Mappings\" />
+    <Folder Include="Features\Orders\Commands\CancelOrder\" />
+    <Folder Include="Features\Orders\Commands\PayOrder\" />
+    <Folder Include="Features\Orders\Queries\GetOrderById\" />
+    <Folder Include="Features\Orders\Queries\GetOrders\" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
