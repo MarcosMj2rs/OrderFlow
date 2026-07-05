@@ -1,51 +1,59 @@
-# 🚀 OrderFlow - Reliable Messaging Lab
+# 🚀 OrderFlow
 
-## 📌 Sobre o Projeto
+> Um laboratório de arquitetura de software para construção de aplicações distribuídas utilizando **Clean Architecture**, **DDD**, **CQRS** e **Event-Driven Architecture**.
 
-O **OrderFlow** é um projeto de estudos desenvolvido para demonstrar a construção de uma aplicação distribuída utilizando **Clean Architecture**, **Domain-Driven Design (DDD)** e **CQRS**, evoluindo gradualmente até uma arquitetura orientada a eventos com **RabbitMQ**, **Outbox Pattern**, **Inbox Pattern**, **Idempotência** e **Consistência Eventual**.
+---
 
-Mais do que um CRUD, este projeto busca representar práticas utilizadas em sistemas corporativos de alta disponibilidade e processamento assíncrono.
+# 📌 Sobre o Projeto
+
+O **OrderFlow** é um projeto desenvolvido com o objetivo de estudar e aplicar padrões arquiteturais utilizados em sistemas corporativos modernos.
+
+Ao longo da evolução do projeto serão implementadas soluções utilizadas em aplicações distribuídas de alta disponibilidade, incluindo mensageria, consistência eventual, observabilidade e integração entre serviços.
+
+Mais do que um CRUD, o OrderFlow busca demonstrar **como construir software escalável, desacoplado e preparado para ambientes distribuídos**.
 
 ---
 
 # 🎯 Objetivos
 
 - Aplicar os princípios da Clean Architecture.
-- Modelar um domínio rico utilizando DDD.
-- Implementar CQRS com MediatR.
-- Demonstrar Domain Events.
-- Implementar persistência utilizando Entity Framework Core.
-- Utilizar SQL Server como banco de dados.
-- Implementar comunicação assíncrona com RabbitMQ.
-- Garantir consistência utilizando Outbox Pattern.
-- Garantir processamento único utilizando Inbox Pattern.
-- Implementar Idempotência.
-- Demonstrar estratégias de Retry e Dead Letter Queue.
+- Modelar um domínio rico utilizando Domain-Driven Design (DDD).
+- Implementar CQRS utilizando MediatR.
+- Trabalhar com Domain Events.
+- Implementar persistência com Entity Framework Core.
+- Aplicar Repository e Unit of Work.
+- Integrar serviços utilizando RabbitMQ.
+- Implementar Outbox Pattern.
+- Implementar Inbox Pattern.
+- Garantir Idempotência.
+- Demonstrar estratégias de Retry.
+- Trabalhar com Dead Letter Queue (DLQ).
+- Demonstrar Sagas e Consistência Eventual.
 - Implementar Observabilidade utilizando OpenTelemetry.
 
 ---
 
 # ⚙️ Stack Tecnológica
 
-- .NET 10
-- C#
-- Entity Framework Core
-- SQL Server
-- RabbitMQ
-- MediatR
-- FluentValidation
-- xUnit
-- FluentAssertions
-- Moq
-- Docker
-- Testcontainers
-- OpenTelemetry
+| Categoria | Tecnologia |
+|-----------|------------|
+| Linguagem | C# |
+| Plataforma | .NET 10 |
+| Arquitetura | Clean Architecture |
+| Modelagem | Domain-Driven Design |
+| Application | MediatR + FluentValidation |
+| Persistência | Entity Framework Core |
+| Banco de Dados | SQL Server |
+| Mensageria | RabbitMQ |
+| Testes | xUnit + FluentAssertions + Moq |
+| Containers | Docker + Testcontainers |
+| Observabilidade | OpenTelemetry |
 
 ---
 
-# 🏗️ Arquitetura da Solução
+# 🏗️ Arquitetura
 
-O projeto segue os princípios da **Clean Architecture**.
+O projeto segue os princípios da **Clean Architecture**, mantendo dependências sempre apontando para o centro da aplicação.
 
 ```text
 Client
@@ -71,11 +79,18 @@ Infrastructure
 SQL Server
 ```
 
-A comunicação entre as camadas ocorre exclusivamente através de abstrações, mantendo o domínio completamente independente da infraestrutura.
+Cada camada possui responsabilidades bem definidas.
+
+| Camada | Responsabilidade |
+|---------|------------------|
+| Domain | Regras de negócio |
+| Application | Casos de uso |
+| Infrastructure | Persistência e integrações |
+| WebApi | Exposição da aplicação via HTTP |
 
 ---
 
-# 📁 Estrutura da Solution
+# 📁 Estrutura da Solução
 
 ```text
 OrderFlow
@@ -102,19 +117,19 @@ OrderFlow
 
 # 📚 Documentação
 
-Toda a documentação do projeto está organizada na pasta `docs`.
+Toda a documentação do projeto está organizada na pasta **docs**.
 
-Ela está dividida em:
-
-- **Concepts** — Conceitos técnicos utilizados no projeto.
-- **ADR (Architecture Decision Records)** — Decisões arquiteturais tomadas durante o desenvolvimento.
-- **Decisions** — Comparativos e justificativas das principais escolhas técnicas.
-- **Diagrams** — Diagramas em Mermaid descrevendo os fluxos da aplicação.
-- **Glossário** — Definições dos principais termos utilizados no projeto.
+| Pasta | Descrição |
+|--------|-----------|
+| concepts | Conceitos utilizados no projeto |
+| adr | Architecture Decision Records |
+| decisions | Comparativos e justificativas técnicas |
+| diagrams | Diagramas em Mermaid |
+| Glossario | Termos utilizados durante o projeto |
 
 ---
 
-# 📊 Funcionalidades Implementadas
+# 📊 Estado Atual do Projeto
 
 ## Foundation
 
@@ -122,9 +137,9 @@ Ela está dividida em:
 |------|:------:|
 | Estrutura da Solution | ✅ |
 | Documentação Inicial | ✅ |
-| Modelagem do Domínio | ✅ |
-| Testes Unitários do Domínio | ✅ |
+| Domain Model | ✅ |
 | Domain Events | ✅ |
+| Testes Unitários do Domínio | ✅ |
 
 ---
 
@@ -136,12 +151,12 @@ Ela está dividida em:
 |-------------|:------:|
 | CreateOrder | ✅ |
 | CancelOrder | ✅ |
-| PayOrder | ⏳ |
+| PayOrder | ✅ |
 
 ### Queries
 
-| Consulta | Status |
-|-----------|:------:|
+| Caso de Uso | Status |
+|-------------|:------:|
 | GetOrderById | ⏳ |
 | GetOrders | ⏳ |
 
@@ -160,7 +175,8 @@ Ela está dividida em:
 |------|:------:|
 | MediatR | ✅ |
 | FluentValidation | ✅ |
-| UnitOfWork (Abstração) | ✅ |
+| IUnitOfWork | ✅ |
+| IOrderRepository | ✅ |
 
 ---
 
@@ -170,6 +186,8 @@ Ela está dividida em:
 |------|:------:|
 | Entity Framework Core | ⏳ |
 | SQL Server | ⏳ |
+| Repository | ⏳ |
+| Unit of Work | ⏳ |
 | RabbitMQ | ⏳ |
 | Outbox Pattern | ⏳ |
 | Inbox Pattern | ⏳ |
@@ -193,16 +211,16 @@ Ela está dividida em:
 
 | Item | Status |
 |------|:------:|
-| OpenTelemetry | ⏳ |
 | Logs Estruturados | ⏳ |
 | Métricas | ⏳ |
 | Tracing Distribuído | ⏳ |
+| OpenTelemetry | ⏳ |
 
 ---
 
 ## Testes
 
-| Item | Status |
+| Tipo | Status |
 |------|:------:|
 | Testes Unitários do Domínio | ✅ |
 | Testes Unitários da Application | ✅ |
@@ -213,21 +231,21 @@ Ela está dividida em:
 
 # 🛣️ Roadmap
 
-Os próximos capítulos do projeto serão desenvolvidos na seguinte ordem:
+As próximas etapas de evolução do projeto serão:
 
-1. Finalização da camada Application
-2. Entity Framework Core
-3. SQL Server
-4. RabbitMQ
-5. Outbox Pattern
-6. Inbox Pattern
-7. Idempotência
-8. Retry
-9. Dead Letter Queue
-10. Saga
-11. Observabilidade
-12. OpenTelemetry
-13. Versionamento de Eventos
+1. Infrastructure (Entity Framework Core)
+2. SQL Server
+3. Repository e Unit of Work
+4. WebApi
+5. RabbitMQ
+6. Outbox Pattern
+7. Inbox Pattern
+8. Idempotência
+9. Retry
+10. Dead Letter Queue
+11. Saga
+12. Observabilidade
+13. OpenTelemetry
 14. Testcontainers
 
 ---
@@ -236,10 +254,10 @@ Os próximos capítulos do projeto serão desenvolvidos na seguinte ordem:
 
 > Em construção.
 
-A documentação de execução será adicionada após a implementação da camada Infrastructure.
+Esta seção será concluída após a implementação da camada Infrastructure e da WebApi.
 
 ---
 
 # 📖 Licença
 
-Projeto desenvolvido exclusivamente para fins de estudo, demonstração de arquitetura de software e evolução profissional.
+Projeto desenvolvido exclusivamente para fins de estudo, experimentação de arquitetura de software e evolução profissional.

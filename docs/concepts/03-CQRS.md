@@ -2,36 +2,39 @@
 
 ## 1. Objetivo
 
-Apresentar o padrão CQRS e sua aplicação no projeto OrderFlow.
+Apresentar o padrão **CQRS (Command Query Responsibility Segregation)** e demonstrar como ele foi aplicado no projeto **OrderFlow**.
 
-O CQRS separa claramente operações de escrita (Commands) das operações de leitura (Queries), permitindo que cada uma evolua de forma independente.
+O CQRS organiza a camada **Application** separando operações de escrita (**Commands**) das operações de leitura (**Queries**), permitindo que cada uma evolua de forma independente.
+
+Essa separação aumenta a coesão dos casos de uso, reduz o acoplamento entre responsabilidades e facilita a manutenção da aplicação.
 
 ---
 
-## 2. Motivação
+# 2. Motivação
 
-Em aplicações tradicionais, a mesma camada costuma ser responsável por:
+Em aplicações tradicionais, é comum encontrar uma única camada responsável por:
 
 - alterar dados;
-- consultar dados;
+- consultar informações;
 - validar entradas;
-- aplicar regras de negócio.
+- aplicar regras de negócio;
+- coordenar persistência.
 
-Com o crescimento da aplicação, essa abordagem tende a gerar alto acoplamento e classes cada vez maiores.
+Com o crescimento da aplicação, essas responsabilidades acabam concentradas em poucas classes, tornando a manutenção cada vez mais difícil.
 
-O CQRS organiza a aplicação em casos de uso independentes.
+O CQRS resolve esse problema organizando a aplicação em pequenos casos de uso independentes.
 
 ---
 
-## 3. Conceito
+# 3. Conceito
 
 CQRS significa:
 
 **Command Query Responsibility Segregation**
 
-O padrão divide a aplicação em dois tipos de operação.
+O padrão divide a aplicação em dois grupos de operações.
 
-### Commands
+## Commands
 
 Representam intenções de alterar o estado do sistema.
 
@@ -45,7 +48,7 @@ Commands podem gerar Domain Events.
 
 ---
 
-### Queries
+## Queries
 
 Representam consultas.
 
@@ -54,13 +57,15 @@ Exemplos:
 - GetOrderById
 - GetOrders
 
-Queries nunca alteram o estado do domínio.
+Queries nunca modificam o estado do domínio.
 
 ---
 
-## 4. Como aplicamos no OrderFlow
+# 4. Arquitetura da camada Application
 
-Cada caso de uso possui sua própria pasta.
+No OrderFlow a camada Application foi organizada seguindo o conceito de **Vertical Slice Architecture**.
+
+Cada caso de uso possui sua própria estrutura.
 
 Exemplo:
 
@@ -75,105 +80,42 @@ Features
             └── CreateOrderResponse.cs
 ```
 
-Toda a lógica de orquestração fica concentrada no Handler.
-
-As regras de negócio permanecem no Domain.
+Cada pasta representa um único caso de uso da aplicação.
 
 ---
 
-## 5. Fluxo
+## Handler
 
-```text
-Controller
+O Handler possui responsabilidade exclusiva de orquestrar o caso de uso.
 
-↓
+Ele:
 
-CreateOrderCommand
+- recebe o Command;
+- utiliza o Aggregate;
+- solicita persistência;
+- retorna o resultado.
 
-↓
-
-ValidationBehavior
-
-↓
-
-CreateOrderCommandValidator
-
-↓
-
-CreateOrderCommandHandler
-
-↓
-
-Order (Domain)
-
-↓
-
-Repository
-
-↓
-
-UnitOfWork
-
-↓
-
-Response
-```
+O Handler **não contém regras de negócio**.
 
 ---
 
-## 6. Casos de uso implementados
+## Validator
 
-Atualmente a camada Application possui os seguintes casos de uso:
+Os Validators utilizam FluentValidation.
 
-### CreateOrder
+Eles validam apenas:
 
-Responsável pela criação de um novo pedido.
+- obrigatoriedade;
+- formato;
+- consistência da entrada.
 
-Fluxo:
-
-- valida o Command;
-- cria o Aggregate Order;
-- persiste utilizando o Repository;
-- confirma a operação através do Unit of Work.
+As regras de negócio continuam pertencendo ao domínio.
 
 ---
 
-### CancelOrder
+## ValidationBehavior
 
-Responsável pelo cancelamento de um pedido existente.
-
-Fluxo:
-
-- localiza o Aggregate;
-- verifica sua existência;
-- executa o comportamento Cancel();
-- persiste utilizando o Unit of Work.
-
-Observe que o Handler não altera diretamente propriedades da entidade.
-
-Toda regra permanece encapsulada no Aggregate.
-
----
-
-### Handler
-
-Orquestra o caso de uso.
-
-Não contém regras de negócio.
-
----
-
-### Validator
-
-Valida a entrada da aplicação.
-
-Não substitui as validações do domínio.
-
----
-
-## Validation Behavior
-
-O projeto utiliza um Pipeline Behavior do MediatR responsável por executar automaticamente todos os Validators registrados antes da execução do Handler.
+O projeto utiliza um **Pipeline Behavior** do MediatR.
 
 Fluxo:
 
@@ -197,64 +139,13 @@ Caso a validação falhe, o Handler não é executado.
 
 ---
 
-## 7. Benefícios
-
-- Alta organização.
-- Casos de uso independentes.
-- Facilidade para testes.
-- Baixo acoplamento.
-- Melhor manutenção.
-- Excelente integração com MediatR.
-
----
-
-## 8. Desvantagens
-
-- Maior quantidade de arquivos.
-- Curva de aprendizado.
-
----
-
-## 9. Boas práticas
-
-- Um Handler por caso de uso.
-- Commands não possuem regras de negócio.
-- Validators apenas validam entrada.
-- Handlers apenas orquestram.
-- O domínio continua sendo responsável pelas regras.
-
----
-
-## 10. Erros comuns
-
-❌ Colocar regras de negócio no Handler.
-
-❌ Executar consultas dentro do domínio.
-
-❌ Duplicar validações do domínio na Application.
-
-❌ Criar Handlers gigantes.
-
----
-
-## 11. Conclusão
-
-O CQRS permitiu organizar a camada Application em pequenos casos de uso independentes, mantendo o domínio isolado das responsabilidades de aplicação.
-
----
-
-## 12. Documentos relacionados
-
-- ADR-004-CQRS
-- DEC-003-Por-que-CQRS
-- 02-Domain-Driven-Design
-- 07-Domain-Events
-
----
-
 ## Unit of Work
 
-Foi criada a abstração IUnitOfWork.
+Foi criada a abstração:
+
+```csharp
+IUnitOfWork
+```
 
 Seu objetivo é desacoplar a camada Application do Entity Framework Core.
 
@@ -264,4 +155,175 @@ A Application apenas solicita:
 await _unitOfWork.SaveChangesAsync();
 ```
 
-A implementação concreta será responsabilidade da Infrastructure.
+A implementação concreta será responsabilidade da camada Infrastructure.
+
+---
+
+## Repository
+
+Os Handlers dependem exclusivamente de interfaces.
+
+Exemplo:
+
+```csharp
+IOrderRepository
+```
+
+Nenhum Handler conhece:
+
+- DbContext
+- Entity Framework Core
+- SQL Server
+
+---
+
+# 5. Como aplicamos no OrderFlow
+
+O fluxo de um Command segue sempre o mesmo padrão.
+
+```text
+Controller
+
+↓
+
+Command
+
+↓
+
+ValidationBehavior
+
+↓
+
+Validator
+
+↓
+
+Handler
+
+↓
+
+Aggregate Root
+
+↓
+
+Repository
+
+↓
+
+UnitOfWork
+
+↓
+
+Persistência
+```
+
+Observe que o domínio permanece completamente isolado da infraestrutura.
+
+---
+
+# 6. Casos de uso implementados
+
+Atualmente a camada Application possui os seguintes Commands.
+
+## CreateOrder
+
+Responsável pela criação de um novo pedido.
+
+Fluxo:
+
+- valida o Command;
+- cria o Aggregate;
+- persiste utilizando Repository;
+- confirma através do UnitOfWork.
+
+---
+
+## CancelOrder
+
+Responsável pelo cancelamento de um pedido.
+
+Fluxo:
+
+- localiza o Aggregate;
+- verifica sua existência;
+- executa `Cancel()`;
+- confirma através do UnitOfWork.
+
+---
+
+## PayOrder
+
+Responsável pelo pagamento de um pedido.
+
+Fluxo:
+
+- localiza o Aggregate;
+- verifica sua existência;
+- executa `Pay()`;
+- confirma através do UnitOfWork.
+
+---
+
+# 7. Benefícios
+
+- Separação entre escrita e leitura.
+- Alta coesão.
+- Baixo acoplamento.
+- Casos de uso independentes.
+- Facilidade para testes.
+- Excelente integração com MediatR.
+- Facilidade para evolução da aplicação.
+
+---
+
+# 8. Desvantagens
+
+- Maior quantidade de arquivos.
+- Curva de aprendizado.
+- Estrutura inicial mais sofisticada.
+
+---
+
+# 9. Boas práticas
+
+- Um Handler por caso de uso.
+- Um Validator por Command.
+- Toda regra de negócio permanece no Domain.
+- O Handler apenas orquestra.
+- Toda persistência passa pelo UnitOfWork.
+- Nunca acessar infraestrutura diretamente pelos Handlers.
+- Organizar a Application por Features.
+
+---
+
+# 10. Erros comuns
+
+❌ Colocar regras de negócio no Handler.
+
+❌ Duplicar validações do domínio na Application.
+
+❌ Fazer consultas dentro do Domain.
+
+❌ Permitir que o Handler conheça o DbContext.
+
+❌ Criar Services gigantes contendo vários casos de uso.
+
+---
+
+# 11. Conclusão
+
+A utilização de CQRS permitiu organizar a camada Application em pequenos casos de uso independentes, mantendo clara a separação entre regras de negócio, orquestração e infraestrutura.
+
+Até o momento, o OrderFlow implementa toda a infraestrutura necessária para Commands, incluindo ValidationBehavior, UnitOfWork, Handlers, Validators e integração com o domínio.
+
+As próximas etapas evoluirão a camada de leitura através das Queries e, posteriormente, a infraestrutura responsável pela persistência e mensageria.
+
+---
+
+# 12. Documentos relacionados
+
+- ADR-004-CQRS
+- DEC-003-Por-que-CQRS
+- Concepts/02-Domain-Driven-Design
+- Concepts/07-Domain-Events
+- Concepts/04-Entity-Framework-Core
