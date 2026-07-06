@@ -124,6 +124,24 @@ Queries nunca alteram o estado do domínio.
 
 ---
 
+# R
+
+## Read Model
+
+Modelo de dados utilizado exclusivamente para consultas.
+
+No OrderFlow, as Queries retornam DTOs específicos de leitura, evitando expor diretamente as entidades do domínio.
+
+---
+
+## Read Repository
+
+Repositório especializado em operações de leitura.
+
+No OrderFlow, essa responsabilidade é representada pela interface `IOrderReadRepository`.
+
+---
+
 # U
 
 ## Unit of Work

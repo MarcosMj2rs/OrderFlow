@@ -84,7 +84,27 @@ Essa abordagem também prepara naturalmente a solução para futuras implementa�
 
 ## Estado atual da implementação
 
-Até o momento, foram implementados os seguintes componentes da camada Application:
+Até o momento, foram implementados os seguintes componentes da camada Application.
+
+### Infraestrutura
+
+- ValidationBehavior
+- IUnitOfWork
+- ApplicationDependencyInjection
+- IOrderReadRepository
+
+### Commands
+
+- CreateOrder
+- CancelOrder
+- PayOrder
+
+### Queries
+
+- GetOrderById
+
+A implementação das demais consultas ocorrerá nas próximas etapas do projeto.
+
 
 ### Infraestrutura
 

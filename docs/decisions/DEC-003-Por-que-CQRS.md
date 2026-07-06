@@ -203,6 +203,23 @@ Toda regra de negócio permanece encapsulada nas entidades do domínio.
 
 ---
 
+## Repositório de Leitura
+
+Foi criada a abstração:
+
+```csharp
+IOrderReadRepository
+```
+
+Essa interface possui responsabilidade exclusiva sobre operações de leitura.
+
+Dessa forma:
+
+- Commands utilizam repositórios do domínio;
+- Queries utilizam repositórios especializados para leitura.
+
+Essa separação permite evoluir os mecanismos de consulta de forma independente da escrita, mantendo aderência aos princípios do CQRS.
+
 # Conclusão
 
 A adoção do CQRS permitiu organizar a camada Application em pequenos casos de uso independentes, reduzindo o acoplamento entre funcionalidades e tornando a arquitetura mais preparada para evoluções futuras.

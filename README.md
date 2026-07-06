@@ -157,7 +157,7 @@ Toda a documentação do projeto está organizada na pasta **docs**.
 
 | Caso de Uso | Status |
 |-------------|:------:|
-| GetOrderById | ⏳ |
+| GetOrderById | ✅ |
 | GetOrders | ⏳ |
 
 ### Behaviors

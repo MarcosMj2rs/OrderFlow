@@ -59,6 +59,12 @@ Exemplos:
 
 Queries nunca modificam o estado do domínio.
 
+Até o momento, o OrderFlow implementa a primeira Query da aplicação:
+
+- GetOrderById
+
+Novas consultas serão adicionadas conforme a evolução da camada Application.
+
 ---
 
 # 4. Arquitetura da camada Application
@@ -264,6 +270,23 @@ Fluxo:
 
 ---
 
+## Queries
+
+### GetOrderById
+
+Responsável por consultar um pedido através do seu identificador.
+
+Fluxo:
+
+- recebe a Query;
+- executa a validação da entrada;
+- delega a consulta ao `IOrderReadRepository`;
+- retorna um modelo de leitura (`GetOrderByIdResponse`).
+
+Diferentemente dos Commands, uma Query não altera o estado do domínio.
+
+Seu único objetivo é fornecer informações para consumo da aplicação.
+
 # 7. Benefícios
 
 - Separação entre escrita e leitura.
@@ -310,7 +333,29 @@ Fluxo:
 
 ---
 
-# 11. Conclusão
+# 11. Commands x Queries
+
+No OrderFlow, Commands e Queries possuem responsabilidades distintas.
+
+### Commands
+
+- Alteram o estado do sistema.
+- Utilizam Aggregates.
+- Confirmam alterações através do UnitOfWork.
+- Podem gerar Domain Events.
+
+### Queries
+
+- Não alteram o estado da aplicação.
+- Não utilizam Aggregates para executar regras de negócio.
+- Delegam a leitura para um repositório especializado (`IOrderReadRepository`).
+- Retornam modelos de leitura (DTOs).
+
+Essa separação reduz o acoplamento entre escrita e leitura e prepara a aplicação para futuras otimizações específicas de consulta.
+
+---
+
+# 12. Conclusão
 
 A utilização de CQRS permitiu organizar a camada Application em pequenos casos de uso independentes, mantendo clara a separação entre regras de negócio, orquestração e infraestrutura.
 
@@ -320,7 +365,7 @@ As próximas etapas evoluirão a camada de leitura através das Queries e, poste
 
 ---
 
-# 12. Documentos relacionados
+# 13. Documentos relacionados
 
 - ADR-004-CQRS
 - DEC-003-Por-que-CQRS
