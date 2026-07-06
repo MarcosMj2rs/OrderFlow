@@ -158,7 +158,7 @@ Toda a documentação do projeto está organizada na pasta **docs**.
 | Caso de Uso | Status |
 |-------------|:------:|
 | GetOrderById | ✅ |
-| GetOrders | ⏳ |
+| GetOrders | ✅ |
 
 ### Behaviors
 
@@ -168,6 +168,14 @@ Toda a documentação do projeto está organizada na pasta **docs**.
 | LoggingBehavior | ⏳ |
 | PerformanceBehavior | ⏳ |
 | ExceptionHandlingBehavior | ⏳ |
+
+### Abstrações
+
+| Item | Status |
+|------|:------:|
+| IUnitOfWork | ✅ |
+| IOrderRepository | ✅ |
+| IOrderReadRepository | ✅ |
 
 ### Infraestrutura da Application
 

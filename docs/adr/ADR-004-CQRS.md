@@ -84,14 +84,14 @@ Essa abordagem também prepara naturalmente a solução para futuras implementa�
 
 ## Estado atual da implementação
 
-Até o momento, foram implementados os seguintes componentes da camada Application.
+Até o momento, a camada Application possui a seguinte estrutura.
 
 ### Infraestrutura
 
 - ValidationBehavior
 - IUnitOfWork
-- ApplicationDependencyInjection
 - IOrderReadRepository
+- ApplicationDependencyInjection
 
 ### Commands
 
@@ -102,23 +102,11 @@ Até o momento, foram implementados os seguintes componentes da camada Applicati
 ### Queries
 
 - GetOrderById
+- GetOrders
 
-A implementação das demais consultas ocorrerá nas próximas etapas do projeto.
+Todos os casos de uso seguem a mesma organização baseada em Vertical Slice Architecture.
 
-
-### Infraestrutura
-
-- ValidationBehavior
-- IUnitOfWork
-- ApplicationDependencyInjection
-
-### Commands
-
-- CreateOrder
-- CancelOrder
-- PayOrder
-
-As Queries serão implementadas na próxima etapa da evolução do projeto.
+A implementação da camada Infrastructure será responsável por fornecer as implementações concretas das abstrações definidas nesta camada.
 
 ---
 

@@ -50,20 +50,33 @@ Commands podem gerar Domain Events.
 
 ## Queries
 
-Representam consultas.
+Atualmente o OrderFlow possui as seguintes Queries implementadas:
 
-Exemplos:
+### GetOrderById
 
-- GetOrderById
-- GetOrders
+Responsável por consultar um pedido através do seu identificador.
 
-Queries nunca modificam o estado do domínio.
+Fluxo:
 
-Até o momento, o OrderFlow implementa a primeira Query da aplicação:
+- recebe a Query;
+- executa a validação da entrada;
+- delega a consulta ao `IOrderReadRepository`;
+- retorna um modelo de leitura (`GetOrderByIdResponse`).
 
-- GetOrderById
+---
 
-Novas consultas serão adicionadas conforme a evolução da camada Application.
+### GetOrders
+
+Responsável por listar os pedidos cadastrados.
+
+Fluxo:
+
+- recebe a Query;
+- executa a validação da entrada;
+- delega a consulta ao `IOrderReadRepository`;
+- retorna uma coleção de `GetOrdersResponse`.
+
+Essa Query retorna apenas informações resumidas dos pedidos, evitando o transporte de dados desnecessários.
 
 ---
 
@@ -337,31 +350,53 @@ Seu único objetivo é fornecer informações para consumo da aplicação.
 
 No OrderFlow, Commands e Queries possuem responsabilidades distintas.
 
-### Commands
+## Commands
 
-- Alteram o estado do sistema.
+- Alteram o estado da aplicação.
 - Utilizam Aggregates.
+- Executam regras de negócio.
 - Confirmam alterações através do UnitOfWork.
 - Podem gerar Domain Events.
 
-### Queries
+## Queries
 
-- Não alteram o estado da aplicação.
-- Não utilizam Aggregates para executar regras de negócio.
-- Delegam a leitura para um repositório especializado (`IOrderReadRepository`).
-- Retornam modelos de leitura (DTOs).
+- Nunca alteram o estado da aplicação.
+- Não executam regras de negócio.
+- Utilizam um repositório especializado de leitura (`IOrderReadRepository`).
+- Retornam DTOs específicos de leitura.
+- Não expõem entidades do domínio.
 
-Essa separação reduz o acoplamento entre escrita e leitura e prepara a aplicação para futuras otimizações específicas de consulta.
+Essa separação permite evoluir escrita e leitura de forma independente, conforme proposto pelo padrão CQRS.
 
 ---
 
 # 12. Conclusão
 
-A utilização de CQRS permitiu organizar a camada Application em pequenos casos de uso independentes, mantendo clara a separação entre regras de negócio, orquestração e infraestrutura.
+A camada Application do OrderFlow foi construída utilizando o padrão CQRS.
 
-Até o momento, o OrderFlow implementa toda a infraestrutura necessária para Commands, incluindo ValidationBehavior, UnitOfWork, Handlers, Validators e integração com o domínio.
+Atualmente ela é composta por:
 
-As próximas etapas evoluirão a camada de leitura através das Queries e, posteriormente, a infraestrutura responsável pela persistência e mensageria.
+### Commands
+
+- CreateOrder
+- CancelOrder
+- PayOrder
+
+### Queries
+
+- GetOrderById
+- GetOrders
+
+Além disso, foram implementados:
+
+- ValidationBehavior;
+- FluentValidation;
+- MediatR;
+- IUnitOfWork;
+- IOrderRepository;
+- IOrderReadRepository.
+
+A infraestrutura responsável pela persistência será implementada na próxima etapa do projeto.
 
 ---
 

@@ -234,3 +234,18 @@ Além da separação entre escrita e leitura, essa decisão possibilitou a intro
 - Concepts/03-CQRS
 - Concepts/02-Domain-Driven-Design
 - Concepts/07-Domain-Events
+
+---
+
+## Read Models
+
+Foi adotada a estratégia de retornar modelos de leitura específicos para cada Query.
+
+Exemplos:
+
+- GetOrderByIdResponse
+- GetOrdersResponse
+
+Essa abordagem evita o vazamento das entidades do domínio para as camadas externas e permite que cada consulta retorne exatamente as informações necessárias para seu respectivo caso de uso.
+
+Optou-se por manter DTOs independentes para cada Query, evitando abstrações prematuras. Caso surjam diversos modelos de leitura semelhantes, essa decisão poderá ser revisitada futuramente.
