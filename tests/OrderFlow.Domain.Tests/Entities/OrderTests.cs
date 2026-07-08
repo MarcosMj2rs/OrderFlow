@@ -60,7 +60,7 @@ namespace OrderFlow.Domain.Tests.Entities
             order.AddItem(secondProductId, quantity: 1, unitPrice: 50m);
 
             // Act
-            order.RemoverItem(secondProductId);
+            order.RemoveItem(secondProductId);
 
             // Assert
             order.Items.Should().HaveCount(1);
@@ -78,7 +78,7 @@ namespace OrderFlow.Domain.Tests.Entities
             var order = new Order(customerId, productId, quantity: 1, unitPrice: 100m);
 
             // Act
-            Action act = () => order.RemoverItem(productId);
+            Action act = () => order.RemoveItem(productId);
 
             // Assert
             act.Should().Throw<DomainException>().WithMessage("An order must contain at least one item.");

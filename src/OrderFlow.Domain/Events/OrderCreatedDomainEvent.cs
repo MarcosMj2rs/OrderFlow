@@ -1,6 +1,6 @@
 ﻿namespace OrderFlow.Domain.Events
 {
-    public class OrderCreatedDomainEvent : DomainEvent
+    public sealed class OrderCreatedDomainEvent : DomainEvent
     {
         public Guid OrderId { get; }
 

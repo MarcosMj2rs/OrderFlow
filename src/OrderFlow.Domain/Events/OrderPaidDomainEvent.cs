@@ -1,22 +1,18 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace OrderFlow.Domain.Events
+﻿namespace OrderFlow.Domain.Events
 {
-    public class OrderPaidDomainEvent : DomainEvent
+    public sealed class OrderPaidDomainEvent : DomainEvent
     {
         public Guid OrderId { get; }
 
         public Guid CustomerId { get; }
 
-        public decimal PaidAmount { get; }
+        public decimal TotalAmount { get; }
 
-        public OrderPaidDomainEvent(Guid orderId, Guid customerId, decimal paidAmount)
+        public OrderPaidDomainEvent(Guid orderId, Guid customerId, decimal totalAmount)
         {
             OrderId = orderId;
             CustomerId = customerId;
-            PaidAmount = paidAmount;
+            TotalAmount = totalAmount;
         }
     }
 }

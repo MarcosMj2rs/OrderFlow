@@ -24,7 +24,7 @@ namespace OrderFlow.Domain.Entities
         public Order(Guid customerId, Guid productId, int quantity, decimal unitPrice)
         {
             if (customerId == Guid.Empty)
-                throw new DomainException($"CustomerId cannot be empty: {nameof(customerId)}");
+                throw new DomainException("CustomerId cannot be empty.");
 
             CustomerId = customerId;
             CreatedAt = DateTime.UtcNow;
@@ -40,7 +40,7 @@ namespace OrderFlow.Domain.Entities
             if (Status == OrderStatus.CANCELLED)
                 throw new DomainException("Cannot add items to a cancelled order.");
 
-            var existingItem = _items.FirstOrDefault(i => i.ProductId == productId);
+            var existingItem = FindItem(productId);
 
             if (existingItem is not null)
             {
@@ -64,7 +64,7 @@ namespace OrderFlow.Domain.Entities
             TotalAmount = _items.Sum(x => x.Total);
         }
 
-        public void RemoverItem(Guid productId)
+        public void RemoveItem(Guid productId)
         {
             if (Status == OrderStatus.CANCELLED)
                 throw new DomainException("Cannot remove items from a cancelled order.");
@@ -95,7 +95,6 @@ namespace OrderFlow.Domain.Entities
             item.ChangeQuantity(quantity);
 
             RecalculateTotal();
-
         }
 
         public void Cancel()

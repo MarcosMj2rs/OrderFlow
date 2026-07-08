@@ -54,18 +54,18 @@ public sealed class OrderItem : Entity
     private static void ValidateProductId(Guid productId)
     {
         if (productId == Guid.Empty)
-            throw new DomainException($"ProductId cannot be empty: {nameof(productId)}");
+            throw new DomainException("ProductId cannot be empty.");
     }
 
     private static void ValidateQuantity(int quantity)
     {
         if (quantity <= 0)
-            throw new DomainException($"{nameof(quantity)}: Quantity must be greater than zero.");
+            throw new DomainException("Quantity must be greater than zero.");
     }
 
     private static void ValidateUnitPrice(decimal unitPrice)
     {
         if (unitPrice <= 0)
-            throw new DomainException($"{nameof(unitPrice)}: Unit price must be greater than zero.");
+            throw new DomainException("Unit price must be greater than zero.");
     }
 }

@@ -1,10 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace OrderFlow.Domain.Events
+﻿namespace OrderFlow.Domain.Events
 {
-    public class OrderCancelledDomainEvent : DomainEvent
+    public sealed class OrderCancelledDomainEvent : DomainEvent
     {
         public Guid OrderId { get; }
 

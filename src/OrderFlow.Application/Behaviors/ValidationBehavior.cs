@@ -33,6 +33,9 @@ namespace OrderFlow.Application.Behaviors
                 .Where(error => error is not null)
                 .ToList();
 
+            if (failures.Count != 0)
+                throw new ValidationException(failures);
+
             return await next();
         }
     }
