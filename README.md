@@ -1,16 +1,18 @@
-# 🚀 OrderFlow
+# 🚀 OrderFlow — Reliable Messaging Lab
 
-> Um laboratório de arquitetura de software para construção de aplicações distribuídas utilizando **Clean Architecture**, **DDD**, **CQRS** e **Event-Driven Architecture**.
+> Um laboratório de arquitetura de software para construção de aplicações distribuídas utilizando **Clean Architecture**, **Domain-Driven Design (DDD)**, **CQRS** e **Event-Driven Architecture**.
 
 ---
 
 # 📌 Sobre o Projeto
 
-O **OrderFlow** é um projeto desenvolvido com o objetivo de estudar e aplicar padrões arquiteturais utilizados em sistemas corporativos modernos.
+O **OrderFlow** é um projeto desenvolvido com o objetivo de estudar, praticar e demonstrar padrões arquiteturais utilizados em sistemas corporativos modernos.
 
 Ao longo da evolução do projeto serão implementadas soluções utilizadas em aplicações distribuídas de alta disponibilidade, incluindo mensageria, consistência eventual, observabilidade e integração entre serviços.
 
 Mais do que um CRUD, o OrderFlow busca demonstrar **como construir software escalável, desacoplado e preparado para ambientes distribuídos**.
+
+O projeto evolui de forma incremental. Cada capítulo introduz novos conceitos arquiteturais, mantendo o código, a documentação e o histórico de commits sincronizados durante toda a evolução da solução.
 
 ---
 
@@ -20,7 +22,7 @@ Mais do que um CRUD, o OrderFlow busca demonstrar **como construir software esca
 - Modelar um domínio rico utilizando Domain-Driven Design (DDD).
 - Implementar CQRS utilizando MediatR.
 - Trabalhar com Domain Events.
-- Implementar persistência com Entity Framework Core.
+- Implementar persistência utilizando Entity Framework Core.
 - Aplicar Repository e Unit of Work.
 - Integrar serviços utilizando RabbitMQ.
 - Implementar Outbox Pattern.
@@ -28,7 +30,8 @@ Mais do que um CRUD, o OrderFlow busca demonstrar **como construir software esca
 - Garantir Idempotência.
 - Demonstrar estratégias de Retry.
 - Trabalhar com Dead Letter Queue (DLQ).
-- Demonstrar Sagas e Consistência Eventual.
+- Implementar Sagas.
+- Demonstrar Consistência Eventual.
 - Implementar Observabilidade utilizando OpenTelemetry.
 
 ---
@@ -42,7 +45,7 @@ Mais do que um CRUD, o OrderFlow busca demonstrar **como construir software esca
 | Arquitetura | Clean Architecture |
 | Modelagem | Domain-Driven Design |
 | Application | MediatR + FluentValidation |
-| Persistência | Entity Framework Core |
+| ORM | Entity Framework Core |
 | Banco de Dados | SQL Server |
 | Mensageria | RabbitMQ |
 | Testes | xUnit + FluentAssertions + Moq |
@@ -53,29 +56,26 @@ Mais do que um CRUD, o OrderFlow busca demonstrar **como construir software esca
 
 # 🏗️ Arquitetura
 
-O projeto segue os princípios da **Clean Architecture**, mantendo dependências sempre apontando para o centro da aplicação.
+O projeto segue os princípios da **Clean Architecture**, mantendo as dependências sempre apontando para o centro da aplicação.
 
 ```text
 Client
-
-↓
-
+   │
+   ▼
 WebApi
-
-↓
-
+   │
+   ▼
 Application
-
-↓
-
+   │
+   ▼
 Domain
 
-↓
-
+Application
+   │
+   ▼
 Infrastructure
-
-↓
-
+   │
+   ▼
 SQL Server
 ```
 
@@ -90,7 +90,7 @@ Cada camada possui responsabilidades bem definidas.
 
 ---
 
-# 📁 Estrutura da Solução
+# 📁 Estrutura da Solution
 
 ```text
 OrderFlow
@@ -121,29 +121,54 @@ Toda a documentação do projeto está organizada na pasta **docs**.
 
 | Pasta | Descrição |
 |--------|-----------|
-| concepts | Conceitos utilizados no projeto |
-| adr | Architecture Decision Records |
+| concepts | Conceitos utilizados durante o desenvolvimento |
+| adr | Architecture Decision Records (ADRs) |
 | decisions | Comparativos e justificativas técnicas |
 | diagrams | Diagramas em Mermaid |
-| Glossario | Termos utilizados durante o projeto |
+| Glossario | Definições dos principais termos do projeto |
+
+---
+
+# 📖 Evolução do Projeto
+
+O desenvolvimento do OrderFlow foi dividido em capítulos, permitindo acompanhar a evolução da arquitetura de forma incremental.
+
+| Capítulo | Status |
+|----------|:------:|
+| Capítulo 1 — Estrutura da Solution | ✅ |
+| Capítulo 2 — Domain Model | ✅ |
+| Capítulo 3 — Domain Events | ✅ |
+| Capítulo 4 — Application (CQRS) | ✅ |
+| Capítulo 5 — Infrastructure | ⏳ |
+| Capítulo 6 — WebApi | ⏳ |
+| Capítulo 7 — RabbitMQ | ⏳ |
+| Capítulo 8 — Outbox Pattern | ⏳ |
+| Capítulo 9 — Inbox Pattern | ⏳ |
+| Capítulo 10 — Idempotência | ⏳ |
+| Capítulo 11 — Arquitetura Distribuída | ⏳ |
+| Capítulo 12 — Observabilidade | ⏳ |
 
 ---
 
 # 📊 Estado Atual do Projeto
 
-## Foundation
+## Domain
+
+**Status da camada:** ✅ Concluída
 
 | Item | Status |
 |------|:------:|
-| Estrutura da Solution | ✅ |
-| Documentação Inicial | ✅ |
 | Domain Model | ✅ |
+| Aggregate Root | ✅ |
 | Domain Events | ✅ |
-| Testes Unitários do Domínio | ✅ |
+| Repositórios | ✅ |
+| Testes Unitários | ✅ |
 
 ---
 
 ## Application
+
+**Status da camada:** ✅ Concluída
 
 ### Commands
 
@@ -177,18 +202,19 @@ Toda a documentação do projeto está organizada na pasta **docs**.
 | IOrderRepository | ✅ |
 | IOrderReadRepository | ✅ |
 
-### Infraestrutura da Application
+### Componentes
 
 | Item | Status |
 |------|:------:|
 | MediatR | ✅ |
 | FluentValidation | ✅ |
-| IUnitOfWork | ✅ |
-| IOrderRepository | ✅ |
+| Vertical Slice Architecture | ✅ |
 
 ---
 
 ## Infrastructure
+
+**Status da camada:** ⏳ Em desenvolvimento
 
 | Item | Status |
 |------|:------:|
@@ -230,7 +256,7 @@ Toda a documentação do projeto está organizada na pasta **docs**.
 
 | Tipo | Status |
 |------|:------:|
-| Testes Unitários do Domínio | ✅ |
+| Testes Unitários do Domain | ✅ |
 | Testes Unitários da Application | ✅ |
 | Testes de Integração | ⏳ |
 | Testcontainers | ⏳ |
@@ -239,22 +265,54 @@ Toda a documentação do projeto está organizada na pasta **docs**.
 
 # 🛣️ Roadmap
 
-As próximas etapas de evolução do projeto serão:
+## Capítulo 5 — Infrastructure
 
-1. Infrastructure (Entity Framework Core)
-2. SQL Server
-3. Repository e Unit of Work
-4. WebApi
-5. RabbitMQ
-6. Outbox Pattern
-7. Inbox Pattern
-8. Idempotência
-9. Retry
-10. Dead Letter Queue
-11. Saga
-12. Observabilidade
-13. OpenTelemetry
-14. Testcontainers
+- Entity Framework Core
+- DbContext
+- Entity Configurations
+- Repositories
+- Unit of Work
+- SQL Server
+
+## Capítulo 6 — WebApi
+
+- Controllers
+- Middlewares
+- Swagger
+- Tratamento global de exceções
+
+## Capítulo 7 — RabbitMQ
+
+- Event Publisher
+- Event Consumer
+- Integração assíncrona
+
+## Capítulo 8
+
+- Outbox Pattern
+
+## Capítulo 9
+
+- Inbox Pattern
+
+## Capítulo 10
+
+- Idempotência
+
+## Capítulo 11
+
+- Retry
+- Dead Letter Queue
+- Saga
+- Consistência Eventual
+
+## Capítulo 12
+
+- Observabilidade
+- OpenTelemetry
+- Logs estruturados
+- Métricas
+- Distributed Tracing
 
 ---
 
@@ -262,10 +320,10 @@ As próximas etapas de evolução do projeto serão:
 
 > Em construção.
 
-Esta seção será concluída após a implementação da camada Infrastructure e da WebApi.
+A documentação de execução será disponibilizada após a conclusão da camada **Infrastructure**, quando o projeto possuir persistência implementada e uma API funcional.
 
 ---
 
 # 📖 Licença
 
-Projeto desenvolvido exclusivamente para fins de estudo, experimentação de arquitetura de software e evolução profissional.
+Projeto desenvolvido exclusivamente para fins de estudo, demonstração de arquitetura de software e evolução profissional.

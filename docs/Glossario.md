@@ -2,7 +2,7 @@
 
 Este documento reúne os principais termos utilizados durante o desenvolvimento do **OrderFlow**.
 
-Os conceitos apresentados aqui possuem definições resumidas. Para um aprofundamento, consulte os documentos da pasta `docs/concepts`.
+Os conceitos apresentados aqui possuem definições resumidas. Para um aprofundamento, consulte os documentos disponíveis na pasta `docs/concepts`.
 
 ---
 
@@ -33,17 +33,19 @@ No OrderFlow, a Aggregate Root é a entidade `Order`.
 
 Objeto que representa uma intenção de alterar o estado do sistema.
 
-Exemplos:
+No OrderFlow:
 
 - CreateOrder
 - CancelOrder
 - PayOrder
 
+Os Commands executam regras de negócio através dos Aggregates e podem gerar Domain Events.
+
 ---
 
 ## CQRS (Command Query Responsibility Segregation)
 
-Padrão arquitetural que separa operações de escrita (**Commands**) das operações de leitura (**Queries**).
+Padrão arquitetural que separa operações de escrita (**Commands**) das operações de leitura (**Queries**), permitindo que ambas evoluam de forma independente.
 
 ---
 
@@ -51,19 +53,21 @@ Padrão arquitetural que separa operações de escrita (**Commands**) das opera�
 
 ## Domain Event
 
-Evento que representa algo importante que aconteceu dentro do domínio.
+Evento que representa algo relevante ocorrido dentro do domínio.
 
 Exemplo:
 
 - OrderCreatedDomainEvent
+- OrderCancelledDomainEvent
+- OrderPaidDomainEvent
 
-Posteriormente esses eventos poderão originar Integration Events.
+No futuro, esses eventos poderão originar Integration Events.
 
 ---
 
 ## Domain Exception
 
-Exceção utilizada para representar violações de regras de negócio.
+Exceção utilizada para representar violações das regras de negócio do domínio.
 
 ---
 
@@ -84,9 +88,16 @@ No OrderFlow:
 
 ## Handler
 
-Responsável por orquestrar um caso de uso da aplicação.
+Componente responsável por orquestrar um caso de uso da aplicação.
 
-Não contém regras de negócio.
+O Handler:
+
+- recebe um Command ou Query;
+- coordena a execução;
+- solicita persistência quando necessário;
+- retorna o resultado.
+
+Não implementa regras de negócio.
 
 ---
 
@@ -94,7 +105,7 @@ Não contém regras de negócio.
 
 ## Invariante
 
-Regra de negócio que deve permanecer verdadeira durante todo o ciclo de vida do Aggregate.
+Regra de negócio que deve permanecer verdadeira durante todo o ciclo de vida de um Aggregate.
 
 Exemplos:
 
@@ -108,7 +119,7 @@ Exemplos:
 
 ## Pipeline Behavior
 
-Componente do MediatR responsável por executar comportamentos transversais antes ou depois dos Handlers.
+Componente do MediatR responsável por executar comportamentos transversais antes ou depois da execução dos Handlers.
 
 No OrderFlow, o primeiro comportamento implementado foi o `ValidationBehavior`.
 
@@ -120,7 +131,11 @@ No OrderFlow, o primeiro comportamento implementado foi o `ValidationBehavior`.
 
 Objeto responsável por representar uma operação de leitura.
 
-Queries nunca alteram o estado do domínio.
+As Queries:
+
+- nunca alteram o estado do domínio;
+- não executam regras de negócio;
+- retornam modelos específicos de leitura (Read Models).
 
 ---
 
@@ -130,7 +145,7 @@ Queries nunca alteram o estado do domínio.
 
 Modelo de dados utilizado exclusivamente para consultas.
 
-No OrderFlow, as Queries retornam DTOs específicos de leitura, evitando expor diretamente as entidades do domínio.
+No OrderFlow, cada Query retorna um DTO específico de leitura, evitando expor diretamente as entidades do domínio.
 
 ---
 
@@ -138,7 +153,21 @@ No OrderFlow, as Queries retornam DTOs específicos de leitura, evitando expor d
 
 Repositório especializado em operações de leitura.
 
-No OrderFlow, essa responsabilidade é representada pela interface `IOrderReadRepository`.
+No OrderFlow, essa responsabilidade é representada pela interface:
+
+```text
+IOrderReadRepository
+```
+
+Essa separação reforça a aplicação do padrão CQRS.
+
+---
+
+## Repository
+
+Abstração responsável pelo acesso aos Aggregates do domínio.
+
+No OrderFlow, o `IOrderRepository` é utilizado exclusivamente pelos Commands para persistir alterações sobre o Aggregate `Order`.
 
 ---
 
@@ -168,6 +197,8 @@ Componente responsável por validar os dados de entrada de um Command ou Query.
 
 No OrderFlow, os Validators são implementados utilizando **FluentValidation**.
 
+Eles validam apenas a entrada da aplicação, enquanto as regras de negócio permanecem encapsuladas no domínio.
+
 ---
 
 ## Vertical Slice Architecture
@@ -184,4 +215,4 @@ CreateOrder
 └── CreateOrderResponse.cs
 ```
 
-Essa abordagem aumenta a coesão e facilita a manutenção da aplicação.
+Cada funcionalidade é desenvolvida de forma independente, aumentando a coesão, reduzindo o acoplamento e facilitando a evolução da aplicação.

@@ -1,12 +1,12 @@
 # CQRS (Command Query Responsibility Segregation)
 
-## 1. Objetivo
+# 1. Objetivo
 
 Apresentar o padrão **CQRS (Command Query Responsibility Segregation)** e demonstrar como ele foi aplicado no projeto **OrderFlow**.
 
-O CQRS organiza a camada **Application** separando operações de escrita (**Commands**) das operações de leitura (**Queries**), permitindo que cada uma evolua de forma independente.
+No OrderFlow, o CQRS organiza a camada **Application**, separando operações de escrita (**Commands**) das operações de leitura (**Queries**), permitindo que cada uma evolua de forma independente.
 
-Essa separação aumenta a coesão dos casos de uso, reduz o acoplamento entre responsabilidades e facilita a manutenção da aplicação.
+Essa separação aumenta a coesão dos casos de uso, reduz o acoplamento entre responsabilidades e prepara a aplicação para futuras arquiteturas distribuídas e orientadas a eventos.
 
 ---
 
@@ -38,51 +38,43 @@ O padrão divide a aplicação em dois grupos de operações.
 
 Representam intenções de alterar o estado do sistema.
 
-Exemplos:
+No OrderFlow foram implementados:
 
 - CreateOrder
 - CancelOrder
 - PayOrder
 
-Commands podem gerar Domain Events.
+Os Commands:
+
+- alteram o estado da aplicação;
+- utilizam o Aggregate Root;
+- executam regras de negócio;
+- podem gerar Domain Events;
+- confirmam alterações através do Unit of Work.
 
 ---
 
 ## Queries
 
-Atualmente o OrderFlow possui as seguintes Queries implementadas:
+Representam operações de leitura.
 
-### GetOrderById
+No OrderFlow foram implementadas:
 
-Responsável por consultar um pedido através do seu identificador.
+- GetOrderById
+- GetOrders
 
-Fluxo:
+As Queries:
 
-- recebe a Query;
-- executa a validação da entrada;
-- delega a consulta ao `IOrderReadRepository`;
-- retorna um modelo de leitura (`GetOrderByIdResponse`).
-
----
-
-### GetOrders
-
-Responsável por listar os pedidos cadastrados.
-
-Fluxo:
-
-- recebe a Query;
-- executa a validação da entrada;
-- delega a consulta ao `IOrderReadRepository`;
-- retorna uma coleção de `GetOrdersResponse`.
-
-Essa Query retorna apenas informações resumidas dos pedidos, evitando o transporte de dados desnecessários.
+- nunca alteram o estado da aplicação;
+- não executam regras de negócio;
+- utilizam um repositório especializado de leitura (`IOrderReadRepository`);
+- retornam modelos específicos de leitura (Read Models).
 
 ---
 
 # 4. Arquitetura da camada Application
 
-No OrderFlow a camada Application foi organizada seguindo o conceito de **Vertical Slice Architecture**.
+A camada Application foi organizada utilizando **Vertical Slice Architecture**.
 
 Cada caso de uso possui sua própria estrutura.
 
@@ -109,9 +101,9 @@ O Handler possui responsabilidade exclusiva de orquestrar o caso de uso.
 
 Ele:
 
-- recebe o Command;
-- utiliza o Aggregate;
-- solicita persistência;
+- recebe o Command ou Query;
+- utiliza os contratos necessários;
+- coordena a execução;
 - retorna o resultado.
 
 O Handler **não contém regras de negócio**.
@@ -120,15 +112,15 @@ O Handler **não contém regras de negócio**.
 
 ## Validator
 
-Os Validators utilizam FluentValidation.
+Os Validators utilizam **FluentValidation**.
 
-Eles validam apenas:
+São responsáveis apenas por validar:
 
 - obrigatoriedade;
 - formato;
 - consistência da entrada.
 
-As regras de negócio continuam pertencendo ao domínio.
+As regras de negócio permanecem exclusivamente no domínio.
 
 ---
 
@@ -139,7 +131,7 @@ O projeto utiliza um **Pipeline Behavior** do MediatR.
 Fluxo:
 
 ```text
-Command
+Command / Query
 
 ↓
 
@@ -178,27 +170,31 @@ A implementação concreta será responsabilidade da camada Infrastructure.
 
 ---
 
-## Repository
+## Repositories
 
-Os Handlers dependem exclusivamente de interfaces.
+O OrderFlow utiliza dois tipos de repositórios.
 
-Exemplo:
+### IOrderRepository
 
-```csharp
-IOrderRepository
-```
+Responsável pelas operações de escrita sobre o Aggregate `Order`.
 
-Nenhum Handler conhece:
-
-- DbContext
-- Entity Framework Core
-- SQL Server
+É utilizado exclusivamente pelos Commands.
 
 ---
 
-# 5. Como aplicamos no OrderFlow
+### IOrderReadRepository
 
-O fluxo de um Command segue sempre o mesmo padrão.
+Responsável pelas operações de leitura.
+
+É utilizado exclusivamente pelas Queries.
+
+Essa separação reforça a aplicação do padrão CQRS, permitindo que escrita e leitura evoluam de forma independente.
+
+---
+
+# 5. Fluxo de execução
+
+## Commands
 
 ```text
 Controller
@@ -233,53 +229,74 @@ UnitOfWork
 
 ↓
 
-Persistência
+Infrastructure
+
+↓
+
+SQL Server
 ```
 
-Observe que o domínio permanece completamente isolado da infraestrutura.
+---
+
+## Queries
+
+```text
+Controller
+
+↓
+
+Query
+
+↓
+
+ValidationBehavior
+
+↓
+
+Validator
+
+↓
+
+Handler
+
+↓
+
+IOrderReadRepository
+
+↓
+
+Infrastructure
+
+↓
+
+SQL Server
+```
+
+Observe que apenas os Commands modificam o estado da aplicação.
+
+As Queries possuem responsabilidade exclusiva de leitura.
 
 ---
 
 # 6. Casos de uso implementados
 
-Atualmente a camada Application possui os seguintes Commands.
+## Commands
 
-## CreateOrder
+### CreateOrder
 
 Responsável pela criação de um novo pedido.
 
-Fluxo:
-
-- valida o Command;
-- cria o Aggregate;
-- persiste utilizando Repository;
-- confirma através do UnitOfWork.
-
 ---
 
-## CancelOrder
+### CancelOrder
 
 Responsável pelo cancelamento de um pedido.
 
-Fluxo:
-
-- localiza o Aggregate;
-- verifica sua existência;
-- executa `Cancel()`;
-- confirma através do UnitOfWork.
-
 ---
 
-## PayOrder
+### PayOrder
 
-Responsável pelo pagamento de um pedido.
-
-Fluxo:
-
-- localiza o Aggregate;
-- verifica sua existência;
-- executa `Pay()`;
-- confirma através do UnitOfWork.
+Responsável pelo registro do pagamento de um pedido.
 
 ---
 
@@ -287,18 +304,20 @@ Fluxo:
 
 ### GetOrderById
 
-Responsável por consultar um pedido através do seu identificador.
+Consulta um pedido completo por identificador.
 
-Fluxo:
+---
 
-- recebe a Query;
-- executa a validação da entrada;
-- delega a consulta ao `IOrderReadRepository`;
-- retorna um modelo de leitura (`GetOrderByIdResponse`).
+### GetOrders
 
-Diferentemente dos Commands, uma Query não altera o estado do domínio.
+Lista os pedidos cadastrados retornando um modelo resumido contendo:
 
-Seu único objetivo é fornecer informações para consumo da aplicação.
+- OrderId
+- CustomerId
+- Status
+- TotalAmount
+
+---
 
 # 7. Benefícios
 
@@ -306,9 +325,10 @@ Seu único objetivo é fornecer informações para consumo da aplicação.
 - Alta coesão.
 - Baixo acoplamento.
 - Casos de uso independentes.
-- Facilidade para testes.
+- Excelente testabilidade.
 - Excelente integração com MediatR.
 - Facilidade para evolução da aplicação.
+- Preparação para arquiteturas orientadas a eventos.
 
 ---
 
@@ -323,12 +343,13 @@ Seu único objetivo é fornecer informações para consumo da aplicação.
 # 9. Boas práticas
 
 - Um Handler por caso de uso.
-- Um Validator por Command.
+- Um Validator por Command ou Query.
 - Toda regra de negócio permanece no Domain.
 - O Handler apenas orquestra.
 - Toda persistência passa pelo UnitOfWork.
 - Nunca acessar infraestrutura diretamente pelos Handlers.
 - Organizar a Application por Features.
+- Queries retornam Read Models, nunca entidades do domínio.
 
 ---
 
@@ -348,23 +369,14 @@ Seu único objetivo é fornecer informações para consumo da aplicação.
 
 # 11. Commands x Queries
 
-No OrderFlow, Commands e Queries possuem responsabilidades distintas.
-
-## Commands
-
-- Alteram o estado da aplicação.
-- Utilizam Aggregates.
-- Executam regras de negócio.
-- Confirmam alterações através do UnitOfWork.
-- Podem gerar Domain Events.
-
-## Queries
-
-- Nunca alteram o estado da aplicação.
-- Não executam regras de negócio.
-- Utilizam um repositório especializado de leitura (`IOrderReadRepository`).
-- Retornam DTOs específicos de leitura.
-- Não expõem entidades do domínio.
+| Commands | Queries |
+|----------|---------|
+| Alteram estado da aplicação | Apenas leitura |
+| Utilizam Aggregates | Utilizam Read Models |
+| Executam regras de negócio | Não executam regras de negócio |
+| Utilizam IOrderRepository | Utilizam IOrderReadRepository |
+| Confirmam alterações | Não persistem dados |
+| Podem gerar Domain Events | Nunca geram Domain Events |
 
 Essa separação permite evoluir escrita e leitura de forma independente, conforme proposto pelo padrão CQRS.
 
@@ -372,38 +384,41 @@ Essa separação permite evoluir escrita e leitura de forma independente, confor
 
 # 12. Conclusão
 
-A camada Application do OrderFlow foi construída utilizando o padrão CQRS.
+Com a conclusão da camada **Application**, o OrderFlow passou a possuir uma implementação completa do padrão CQRS.
 
-Atualmente ela é composta por:
+Foram implementados:
 
-### Commands
+## Commands
 
 - CreateOrder
 - CancelOrder
 - PayOrder
 
-### Queries
+## Queries
 
 - GetOrderById
 - GetOrders
 
-Além disso, foram implementados:
+## Componentes da Application
 
-- ValidationBehavior;
-- FluentValidation;
-- MediatR;
-- IUnitOfWork;
-- IOrderRepository;
-- IOrderReadRepository.
+- MediatR
+- FluentValidation
+- ValidationBehavior
+- IUnitOfWork
+- IOrderRepository
+- IOrderReadRepository
+- Vertical Slice Architecture
 
-A infraestrutura responsável pela persistência será implementada na próxima etapa do projeto.
+Toda a camada Application permanece desacoplada da infraestrutura, dependendo exclusivamente de abstrações.
+
+O próximo capítulo abordará a implementação da camada **Infrastructure**, responsável pela persistência dos Aggregates, mapeamento das entidades, implementação dos repositórios e integração com o Entity Framework Core.
 
 ---
 
 # 13. Documentos relacionados
 
-- ADR-004-CQRS
-- DEC-003-Por-que-CQRS
+- ADR-004 — CQRS
+- DEC-003 — Por que CQRS?
 - Concepts/02-Domain-Driven-Design
 - Concepts/07-Domain-Events
 - Concepts/04-Entity-Framework-Core

@@ -4,9 +4,9 @@
 
 Como organizar os casos de uso da aplicação de forma escalável, mantendo baixo acoplamento entre as camadas, alta coesão e facilidade de manutenção?
 
-Em aplicações tradicionais, é comum concentrar toda a lógica de escrita, leitura, validação e orquestração em classes de serviço (`Application Services`). À medida que a aplicação cresce, essas classes tendem a acumular responsabilidades, tornando-se difíceis de manter e testar.
+Em aplicações tradicionais, é comum concentrar operações de escrita, leitura, validação e orquestração em classes de serviço (*Application Services*). À medida que a aplicação cresce, essas classes tendem a acumular responsabilidades, tornando-se difíceis de manter, testar e evoluir.
 
-Era necessário definir uma estratégia que permitisse organizar a camada Application de forma mais modular, preparando o projeto para futuras integrações orientadas a eventos.
+Era necessário definir uma estratégia que permitisse organizar a camada **Application** de forma modular, preparando o projeto para futuras integrações orientadas a eventos.
 
 ---
 
@@ -24,16 +24,15 @@ OrderService
 - PayOrder()
 - GetOrder()
 - GetOrders()
-- ...
 ```
 
-### Vantagens
+## Vantagens
 
-- Estrutura simples.
+- Estrutura inicial simples.
 - Menor quantidade de arquivos.
 - Curva de aprendizado reduzida.
 
-### Desvantagens
+## Desvantagens
 
 - Alto acoplamento.
 - Classes grandes.
@@ -46,7 +45,7 @@ OrderService
 
 # Alternativa 2 — CQRS utilizando MediatR
 
-Cada caso de uso é tratado individualmente.
+Cada caso de uso passa a representar uma unidade independente da aplicação.
 
 Exemplo:
 
@@ -59,19 +58,19 @@ CreateOrder
 - Response
 ```
 
-Cada funcionalidade passa a representar um Vertical Slice da aplicação.
+Cada funcionalidade é organizada seguindo o conceito de **Vertical Slice Architecture**.
 
-### Vantagens
+## Vantagens
 
 - Casos de uso independentes.
 - Alta coesão.
 - Baixo acoplamento.
 - Melhor manutenção.
-- Melhor testabilidade.
-- Excelente integração com Pipeline Behaviors.
-- Estrutura preparada para arquitetura orientada a eventos.
+- Excelente testabilidade.
+- Integração natural com Pipeline Behaviors.
+- Preparação para arquiteturas orientadas a eventos.
 
-### Desvantagens
+## Desvantagens
 
 - Maior quantidade de arquivos.
 - Curva de aprendizado inicial.
@@ -81,24 +80,24 @@ Cada funcionalidade passa a representar um Vertical Slice da aplicação.
 
 # Decisão
 
-Foi adotado o padrão **CQRS** utilizando **MediatR**.
+Foi adotado o padrão **CQRS**, utilizando **MediatR** como mecanismo de despacho dos casos de uso.
 
-Cada caso de uso passou a possuir sua própria estrutura composta por:
+Cada caso de uso possui sua própria estrutura composta por:
 
 - Command ou Query;
 - Handler;
 - Validator;
 - Request/Response (quando aplicável).
 
-Os casos de uso são organizados por **Feature**, seguindo a abordagem **Vertical Slice Architecture**.
+Todos os casos de uso são organizados por **Feature**, seguindo a abordagem **Vertical Slice Architecture**.
 
-Essa organização facilita a evolução da aplicação e reduz significativamente o acoplamento entre funcionalidades.
+Essa organização reduz o acoplamento entre funcionalidades, melhora a navegação pelo código e facilita a evolução da aplicação.
 
 ---
 
 # Decisões complementares
 
-Durante a implementação da camada Application foram adotadas algumas decisões arquiteturais para manter a consistência do projeto.
+Durante a implementação da camada **Application**, foram adotadas decisões arquiteturais adicionais para manter a consistência da solução.
 
 ## ValidationBehavior
 
@@ -107,7 +106,7 @@ A validação ocorre automaticamente antes da execução do Handler.
 Fluxo:
 
 ```text
-Command
+Command / Query
 
 ↓
 
@@ -125,8 +124,8 @@ Handler
 Dessa forma:
 
 - o Handler não executa validações de entrada;
-- o código permanece mais limpo;
-- evita-se repetição de validações.
+- evita-se repetição de código;
+- mantém-se um pipeline consistente para todos os casos de uso.
 
 ---
 
@@ -154,19 +153,25 @@ Sem conhecer:
 
 ---
 
-## Repositories
+## Repositórios
 
-Os Handlers dependem exclusivamente de interfaces.
+A arquitetura passou a utilizar dois tipos de repositório.
 
-Exemplo:
+### IOrderRepository
 
-```csharp
-IOrderRepository
-```
+Responsável pelas operações de escrita sobre o Aggregate `Order`.
 
-As implementações concretas pertencem à camada Infrastructure.
+É utilizado exclusivamente pelos Commands.
 
-Essa decisão mantém a camada Application completamente desacoplada dos mecanismos de persistência.
+---
+
+### IOrderReadRepository
+
+Responsável pelas operações de leitura.
+
+É utilizado exclusivamente pelas Queries.
+
+Essa separação reforça a aplicação do CQRS e permite evoluir mecanismos de leitura e escrita de forma independente.
 
 ---
 
@@ -185,7 +190,7 @@ CreateOrder
 - CreateOrderResponse
 ```
 
-Essa organização melhora a navegação pelo código e facilita a manutenção.
+Essa organização melhora a navegação pelo código, aumenta a coesão e reduz o acoplamento entre funcionalidades.
 
 ---
 
@@ -197,34 +202,64 @@ Seu papel é apenas:
 
 - localizar o Aggregate;
 - executar um comportamento do domínio;
-- solicitar persistência.
+- solicitar persistência;
+- retornar o resultado.
 
-Toda regra de negócio permanece encapsulada nas entidades do domínio.
+Toda regra de negócio permanece encapsulada no domínio.
 
 ---
 
-## Repositório de Leitura
+## Read Models
 
-Foi criada a abstração:
+Foi adotada a estratégia de retornar modelos específicos para cada operação de leitura.
 
-```csharp
-IOrderReadRepository
-```
+Exemplos:
 
-Essa interface possui responsabilidade exclusiva sobre operações de leitura.
+- GetOrderByIdResponse
+- GetOrdersResponse
 
-Dessa forma:
+Essa abordagem evita o vazamento das entidades do domínio para as camadas externas e permite que cada consulta retorne apenas as informações necessárias para seu respectivo caso de uso.
 
-- Commands utilizam repositórios do domínio;
-- Queries utilizam repositórios especializados para leitura.
+Optou-se por manter DTOs independentes, evitando abstrações prematuras.
 
-Essa separação permite evoluir os mecanismos de consulta de forma independente da escrita, mantendo aderência aos princípios do CQRS.
+---
+
+# Resultado
+
+Ao término da implementação da camada **Application**, o CQRS mostrou-se adequado aos objetivos do OrderFlow.
+
+Foram implementados:
+
+## Commands
+
+- CreateOrder
+- CancelOrder
+- PayOrder
+
+## Queries
+
+- GetOrderById
+- GetOrders
+
+Além disso, a camada Application passou a contar com:
+
+- MediatR;
+- FluentValidation;
+- ValidationBehavior;
+- IUnitOfWork;
+- IOrderRepository;
+- IOrderReadRepository;
+- Vertical Slice Architecture.
+
+Essa decisão estabeleceu uma base sólida para o próximo capítulo do projeto, dedicado à implementação da camada **Infrastructure**.
+
+---
 
 # Conclusão
 
-A adoção do CQRS permitiu organizar a camada Application em pequenos casos de uso independentes, reduzindo o acoplamento entre funcionalidades e tornando a arquitetura mais preparada para evoluções futuras.
+A adoção do CQRS permitiu organizar a camada **Application** em pequenos casos de uso independentes, reduzindo o acoplamento entre funcionalidades e aumentando significativamente a manutenibilidade da solução.
 
-Além da separação entre escrita e leitura, essa decisão possibilitou a introdução de componentes como ValidationBehavior, UnitOfWork e Vertical Slice Architecture, estabelecendo uma base sólida para a implementação da camada Infrastructure e, posteriormente, da arquitetura orientada a eventos.
+A arquitetura construída preserva os princípios da **Clean Architecture** e do **Domain-Driven Design**, preparando o OrderFlow para a implementação da persistência, mensageria e arquitetura orientada a eventos.
 
 ---
 
@@ -234,18 +269,3 @@ Além da separação entre escrita e leitura, essa decisão possibilitou a intro
 - Concepts/03-CQRS
 - Concepts/02-Domain-Driven-Design
 - Concepts/07-Domain-Events
-
----
-
-## Read Models
-
-Foi adotada a estratégia de retornar modelos de leitura específicos para cada Query.
-
-Exemplos:
-
-- GetOrderByIdResponse
-- GetOrdersResponse
-
-Essa abordagem evita o vazamento das entidades do domínio para as camadas externas e permite que cada consulta retorne exatamente as informações necessárias para seu respectivo caso de uso.
-
-Optou-se por manter DTOs independentes para cada Query, evitando abstrações prematuras. Caso surjam diversos modelos de leitura semelhantes, essa decisão poderá ser revisitada futuramente.
