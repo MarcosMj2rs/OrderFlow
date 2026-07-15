@@ -142,14 +142,14 @@ O desenvolvimento do OrderFlow foi dividido em capítulos, permitindo acompanhar
 | Capítulo 3 — Domain Events | ✅ |
 | Capítulo 4 — Application (CQRS) | ✅ |
 | Capítulo 5 — Infrastructure | ✅ |
-| Capítulo 6 — WebApi | ⏳ |
-| Capítulo 7 — RabbitMQ | ⏳ |
-| Capítulo 8 — Outbox Pattern | ⏳ |
-| Capítulo 9 — Inbox Pattern | ⏳ |
-| Capítulo 10 — Idempotência | ⏳ |
-| Capítulo 11 — Arquitetura Distribuída | ⏳ |
-| Capítulo 12 — Observabilidade | ⏳ |
-
+| Capítulo 6 — RabbitMQ | ⏳ |
+| Capítulo 7 — Background Workers | ⏳ |
+| Capítulo 8 — WebApi | ⏳ |
+| Capítulo 9 — Outbox Pattern | ⏳ |
+| Capítulo 10 — Inbox Pattern | ⏳ |
+| Capítulo 11 — Idempotência | ⏳ |
+| Capítulo 12 — Saga | ⏳ |
+| Capítulo 13 — Observabilidade | ⏳ |
 ---
 
 # 📊 Estado Atual do Projeto
@@ -286,39 +286,54 @@ O desenvolvimento do OrderFlow foi dividido em capítulos, permitindo acompanhar
 - User Secrets
 - Migrations
 
-## Capítulo 6 — WebApi
+## Capítulo 6 — RabbitMQ
+
+- Fundamentos de mensageria
+- Connection
+- Channel
+- Exchange
+- Queue
+- Binding
+- Routing Key
+- Publisher
+- Publisher Confirm
+
+## Capítulo 7 — Background Workers
+
+- Consumer
+- Ack
+- Nack
+- Reject
+- Prefetch
+- Retry
+- Dead Letter Queue
+
+## Capítulo 8 — WebApi
 
 - Controllers
 - Middlewares
 - Swagger
 - Tratamento global de exceções
 
-## Capítulo 7 — RabbitMQ
-
-- Event Publisher
-- Event Consumer
-- Integração assíncrona
-
-## Capítulo 8
+## Capítulo 9
 
 - Outbox Pattern
 
-## Capítulo 9
+## Capítulo 10
 
 - Inbox Pattern
 
-## Capítulo 10
+## Capítulo 11
 
 - Idempotência
 
-## Capítulo 11
+## Capítulo 12
 
-- Retry
-- Dead Letter Queue
 - Saga
 - Consistência Eventual
+- Versionamento de Eventos
 
-## Capítulo 12
+## Capítulo 13
 
 - Observabilidade
 - OpenTelemetry

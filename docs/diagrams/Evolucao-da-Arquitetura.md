@@ -153,9 +153,31 @@ Ao término deste capítulo, toda a infraestrutura de persistência encontra-se 
 
 ---
 
-# Próxima etapa — WebApi
+# Próxima etapa — RabbitMQ
 
-O próximo capítulo será responsável por expor os casos de uso da aplicação através de uma API REST.
+O próximo capítulo será responsável por introduzir a infraestrutura de mensageria do OrderFlow.
+
+Serão estudados e implementados:
+
+- fundamentos de mensageria;
+- conexão com RabbitMQ;
+- channels;
+- exchanges;
+- queues;
+- bindings;
+- routing keys;
+- publisher;
+- publisher confirms.
+
+A implementação será precedida pela definição da topologia de mensageria, das convenções de nomenclatura e das garantias de entrega adotadas pelo projeto.
+
+**Status:** 🚧 Em desenvolvimento
+
+---
+
+# Etapa futura — WebApi
+
+Após a implementação da infraestrutura de mensageria e dos Workers, a aplicação será exposta através de uma API REST.
 
 Serão desenvolvidos:
 
@@ -164,9 +186,7 @@ Serão desenvolvidos:
 - Swagger/OpenAPI;
 - Pipeline HTTP;
 - Integração com MediatR;
-- Testes de integração dos endpoints.
-
-A camada WebApi permanecerá responsável apenas pela orquestração das requisições, mantendo as regras de negócio concentradas nas camadas Domain e Application.
+- Tratamento global de exceções.
 
 **Status:** ⏳ Planejado
 
@@ -214,10 +234,13 @@ Application (CQRS)
 Infrastructure
     │
     ▼
-WebApi
+RabbitMQ
     │
     ▼
-RabbitMQ
+Background Workers
+    │
+    ▼
+WebApi
     │
     ▼
 Outbox
@@ -231,7 +254,6 @@ Arquitetura Distribuída
     ▼
 Observabilidade
 ```
-
 ---
 
 ## Observações
