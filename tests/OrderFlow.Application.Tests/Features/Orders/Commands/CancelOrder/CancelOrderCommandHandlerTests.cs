@@ -11,6 +11,7 @@ namespace OrderFlow.Application.Tests.Features.Orders.Commands.CancelOrder
 {
     public sealed class CancelOrderCommandHandlerTests
     {
+        [Fact]
         public async Task Should_Cancel_Order_When_Order_Exists()
         {
             // Arrange
