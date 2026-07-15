@@ -14,6 +14,8 @@ Mais do que um CRUD, o OrderFlow busca demonstrar **como construir software esca
 
 O projeto evolui de forma incremental. Cada capítulo introduz novos conceitos arquiteturais, mantendo o código, a documentação e o histórico de commits sincronizados durante toda a evolução da solução.
 
+Atualmente o projeto já possui as camadas **Domain**, **Application** e **Infrastructure** implementadas, incluindo persistência com Entity Framework Core, integração com SQL Server e versionamento do banco através de Migrations. As próximas etapas concentrarão esforços na exposição da aplicação via WebApi e, posteriormente, na implementação da arquitetura orientada a eventos utilizando RabbitMQ.
+
 ---
 
 # 🎯 Objetivos
@@ -139,7 +141,7 @@ O desenvolvimento do OrderFlow foi dividido em capítulos, permitindo acompanhar
 | Capítulo 2 — Domain Model | ✅ |
 | Capítulo 3 — Domain Events | ✅ |
 | Capítulo 4 — Application (CQRS) | ✅ |
-| Capítulo 5 — Infrastructure | ⏳ |
+| Capítulo 5 — Infrastructure | ✅ |
 | Capítulo 6 — WebApi | ⏳ |
 | Capítulo 7 — RabbitMQ | ⏳ |
 | Capítulo 8 — Outbox Pattern | ⏳ |
@@ -214,14 +216,20 @@ O desenvolvimento do OrderFlow foi dividido em capítulos, permitindo acompanhar
 
 ## Infrastructure
 
-**Status da camada:** ⏳ Em desenvolvimento
+**Status da camada:** ✅ Concluída
 
 | Item | Status |
 |------|:------:|
-| Entity Framework Core | ⏳ |
-| SQL Server | ⏳ |
-| Repository | ⏳ |
-| Unit of Work | ⏳ |
+| Entity Framework Core | ✅ |
+| SQL Server | ✅ |
+| DbContext | ✅ |
+| Entity Configurations | ✅ |
+| Repository | ✅ |
+| Read Repository | ✅ |
+| Unit of Work | ✅ |
+| Dependency Injection | ✅ |
+| User Secrets | ✅ |
+| Migrations | ✅ |
 | RabbitMQ | ⏳ |
 | Outbox Pattern | ⏳ |
 | Inbox Pattern | ⏳ |
@@ -269,10 +277,14 @@ O desenvolvimento do OrderFlow foi dividido em capítulos, permitindo acompanhar
 
 - Entity Framework Core
 - DbContext
+- Fluent API
 - Entity Configurations
 - Repositories
+- Read Repository
 - Unit of Work
 - SQL Server
+- User Secrets
+- Migrations
 
 ## Capítulo 6 — WebApi
 
@@ -318,9 +330,13 @@ O desenvolvimento do OrderFlow foi dividido em capítulos, permitindo acompanhar
 
 # ▶️ Como Executar
 
-> Em construção.
+> Em evolução.
 
-A documentação de execução será disponibilizada após a conclusão da camada **Infrastructure**, quando o projeto possuir persistência implementada e uma API funcional.
+A camada **Infrastructure** já se encontra implementada, incluindo Entity Framework Core, SQL Server, Migrations e User Secrets.
+
+A documentação completa de execução será disponibilizada após a implementação da **WebApi**, permitindo a utilização dos endpoints da aplicação.
+
+Todas as demais seções permanecem inalteradas.
 
 ---
 

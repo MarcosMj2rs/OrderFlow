@@ -49,9 +49,9 @@ Introdução dos eventos de domínio.
 
 Eventos implementados:
 
-- OrderCreatedDomainEvent
-- OrderCancelledDomainEvent
-- OrderPaidDomainEvent
+- OrderCreatedDomainEvent;
+- OrderCancelledDomainEvent;
+- OrderPaidDomainEvent.
 
 Também foi criada a infraestrutura para gerenciamento de Domain Events através da classe base `Entity`.
 
@@ -67,30 +67,30 @@ Principais componentes implementados:
 
 ## Commands
 
-- CreateOrder
-- CancelOrder
-- PayOrder
+- CreateOrder;
+- CancelOrder;
+- PayOrder.
 
 ## Queries
 
-- GetOrderById
-- GetOrders
+- GetOrderById;
+- GetOrders.
 
 ## Behaviors
 
-- ValidationBehavior
+- ValidationBehavior.
 
 ## Abstrações
 
-- IUnitOfWork
-- IOrderRepository
-- IOrderReadRepository
+- IUnitOfWork;
+- IOrderRepository;
+- IOrderReadRepository.
 
 ## Tecnologias
 
-- MediatR
-- FluentValidation
-- Vertical Slice Architecture
+- MediatR;
+- FluentValidation;
+- Vertical Slice Architecture.
 
 Ao término deste capítulo, a camada **Application** encontra-se completamente implementada e desacoplada da infraestrutura.
 
@@ -98,26 +98,105 @@ Ao término deste capítulo, a camada **Application** encontra-se completamente 
 
 ---
 
-# Próxima etapa — Infrastructure
+# Capítulo 5 — Infrastructure
 
-O próximo capítulo será responsável por implementar as abstrações definidas até aqui.
+Foi implementada toda a camada **Infrastructure**, concretizando as abstrações definidas na Application.
 
-Serão desenvolvidos:
+Principais componentes implementados:
 
-- Entity Framework Core;
-- DbContext;
+## Entity Framework Core
+
+- OrderFlowDbContext;
+- Fluent API;
 - Entity Configurations;
-- Repositories;
-- UnitOfWork;
-- SQL Server.
+- Change Tracking;
+- Backing Fields;
+- Shadow Properties.
 
-A arquitetura continuará evoluindo sem alterar as responsabilidades das camadas Domain e Application.
+## Persistência
 
-**Status:** 🚧 Em desenvolvimento
+- OrderRepository;
+- OrderReadRepository;
+- UnitOfWork.
+
+## SQL Server
+
+- integração com SQL Server local;
+- configuração via Dependency Injection;
+- Connection String utilizando User Secrets.
+
+## Banco de Dados
+
+- primeira migration (`InitialCreate`);
+- criação automática do banco;
+- criação das tabelas;
+- criação dos índices;
+- criação das Foreign Keys;
+- utilização do Model Snapshot para controle da evolução do modelo.
+
+## Conceitos estudados
+
+- DbContext;
+- Fluent API;
+- Migrations;
+- Model Snapshot;
+- AsNoTracking;
+- Change Tracking;
+- Aggregate Mapping;
+- Backing Fields;
+- Shadow Properties;
+- User Secrets.
+
+Ao término deste capítulo, toda a infraestrutura de persistência encontra-se implementada e integrada ao SQL Server.
+
+**Status:** ✅ Concluído
 
 ---
 
-# Evolução prevista
+# Próxima etapa — WebApi
+
+O próximo capítulo será responsável por expor os casos de uso da aplicação através de uma API REST.
+
+Serão desenvolvidos:
+
+- Controllers;
+- Endpoints;
+- Swagger/OpenAPI;
+- Pipeline HTTP;
+- Integração com MediatR;
+- Testes de integração dos endpoints.
+
+A camada WebApi permanecerá responsável apenas pela orquestração das requisições, mantendo as regras de negócio concentradas nas camadas Domain e Application.
+
+**Status:** ⏳ Planejado
+
+---
+
+# Etapas Futuras
+
+Após a conclusão da WebApi, a arquitetura continuará evoluindo com foco em mensageria e sistemas distribuídos.
+
+Próximas implementações previstas:
+
+- RabbitMQ;
+- Publisher;
+- Consumer;
+- Background Workers;
+- Outbox Pattern;
+- Inbox Pattern;
+- Idempotência;
+- Retry;
+- Dead Letter Queue (DLQ);
+- Saga;
+- OpenTelemetry;
+- Observabilidade;
+- Testcontainers.
+
+Cada etapa será construída sobre a infraestrutura já consolidada.
+
+---
+
+# Evolução da Arquitetura
 
 ```text
 Foundation
@@ -159,4 +238,11 @@ Observabilidade
 
 A evolução do OrderFlow ocorre de forma incremental.
 
-Cada capítulo consolida uma etapa da arquitetura antes da introdução de novos componentes, mantendo a documentação sincronizada com a implementação.
+Cada capítulo consolida completamente uma etapa da arquitetura antes da introdução de novos componentes, garantindo que:
+
+- o código permaneça consistente;
+- a documentação acompanhe a implementação;
+- as decisões arquiteturais sejam registradas;
+- os conceitos sejam compreendidos antes da evolução para a etapa seguinte.
+
+Essa abordagem permite que o projeto funcione não apenas como uma aplicação de referência, mas também como um laboratório de estudo sobre Clean Architecture, DDD, CQRS, Entity Framework Core, SQL Server e, nas próximas etapas, mensageria e arquitetura distribuída.
