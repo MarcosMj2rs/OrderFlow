@@ -27,6 +27,22 @@ No OrderFlow, a Aggregate Root é a entidade `Order`.
 
 ---
 
+# AsNoTracking
+
+Configuração utilizada em consultas do Entity Framework Core para evitar que os objetos retornados sejam armazenados no Change Tracker.
+
+No OrderFlow, é utilizada pelo `OrderReadRepository` nas consultas destinadas apenas à leitura.
+
+---
+
+# Backing Field
+
+Campo privado utilizado pelo Entity Framework Core para armazenar o estado de uma propriedade ou navegação sem exigir que a coleção mutável seja exposta publicamente.
+
+No OrderFlow, o campo `_items` é utilizado como backing field da propriedade `Items` do Aggregate `Order`.
+
+---
+
 # C
 
 ## Command
@@ -46,6 +62,22 @@ Os Commands executam regras de negócio através dos Aggregates e podem gerar Do
 ## CQRS (Command Query Responsibility Segregation)
 
 Padrão arquitetural que separa operações de escrita (**Commands**) das operações de leitura (**Queries**), permitindo que ambas evoluam de forma independente.
+
+---
+
+# Change Tracking
+
+Mecanismo do Entity Framework Core responsável por acompanhar o estado das entidades carregadas pelo `DbContext`.
+
+No OrderFlow, os Aggregates são carregados de forma rastreada, alterados por comportamentos de domínio e persistidos através de `SaveChangesAsync()`.
+
+---
+
+# Cascade Delete
+
+Comportamento de exclusão no qual os registros dependentes são removidos quando o registro principal é excluído fisicamente.
+
+No OrderFlow, uma exclusão física de `Order` também remove seus `OrderItems`. O cancelamento de um pedido não utiliza exclusão física.
 
 ---
 
@@ -71,6 +103,14 @@ Exceção utilizada para representar violações das regras de negócio do domí
 
 ---
 
+# DbContext
+
+Classe central do Entity Framework Core responsável por representar uma sessão de trabalho com o banco de dados.
+
+O `OrderFlowDbContext` gerencia o Change Tracking, os mapeamentos e a persistência das entidades do OrderFlow.
+
+---
+
 # E
 
 ## Entity
@@ -81,6 +121,36 @@ No OrderFlow:
 
 - Order
 - OrderItem
+
+---
+
+# Eager Loading
+
+Estratégia de carregamento na qual entidades relacionadas são obtidas juntamente com a entidade principal.
+
+No OrderFlow, o `OrderRepository` carrega o Aggregate `Order` com seus itens para garantir que o comportamento de domínio opere sobre o Aggregate completo.
+
+---
+
+# Entity Configuration
+
+Classe responsável por definir o mapeamento de uma entidade através da Fluent API do Entity Framework Core.
+
+No OrderFlow, `OrderConfiguration` e `OrderItemConfiguration` concentram os mapeamentos da persistência.
+
+---
+
+# Fluent API
+
+API de configuração do Entity Framework Core utilizada para mapear entidades, propriedades, relacionamentos, índices e restrições sem adicionar atributos de persistência ao Domain.
+
+---
+
+# Foreign Key
+
+Restrição que relaciona registros entre tabelas e preserva a integridade referencial.
+
+No OrderFlow, `OrderItems.OrderId` referencia `Orders.Id`.
 
 ---
 
@@ -112,6 +182,22 @@ Exemplos:
 - Um pedido deve possuir pelo menos um item.
 - Um pedido cancelado não pode receber novos itens.
 - O valor total do pedido deve corresponder à soma dos seus itens.
+
+---
+
+# Migration
+
+Arquivo gerado pelo Entity Framework Core que descreve as alterações necessárias para evoluir o esquema do banco de dados entre dois estados do modelo.
+
+A migration inicial do OrderFlow é chamada `InitialCreate`.
+
+---
+
+# Model Snapshot
+
+Arquivo mantido automaticamente pelo Entity Framework Core que representa o estado atual do modelo conhecido pelo framework.
+
+Ele é utilizado como base de comparação para gerar novas migrations e não deve ser alterado manualmente.
 
 ---
 
@@ -171,6 +257,20 @@ No OrderFlow, o `IOrderRepository` é utilizado exclusivamente pelos Commands pa
 
 ---
 
+# Shadow Property
+
+Propriedade existente apenas no modelo interno do Entity Framework Core, sem estar declarada na classe de domínio.
+
+No OrderFlow, `OrderId` é uma Shadow Property utilizada como Foreign Key de `OrderItem`.
+
+---
+
+# SQL Server
+
+Banco de dados relacional utilizado pelo OrderFlow para persistir os Aggregates da aplicação.
+
+No ambiente atual, o SQL Server está instalado localmente e é acessado através do Entity Framework Core.
+
 # U
 
 ## Unit of Work
@@ -178,6 +278,15 @@ No OrderFlow, o `IOrderRepository` é utilizado exclusivamente pelos Commands pa
 Abstração responsável por confirmar as alterações realizadas durante um caso de uso.
 
 No OrderFlow, o `IUnitOfWork` desacopla a camada Application da implementação do Entity Framework Core.
+
+---
+
+
+# User Secrets
+
+Mecanismo utilizado durante o desenvolvimento para armazenar configurações sensíveis fora do código-fonte.
+
+No OrderFlow, a Connection String do SQL Server é armazenada em User Secrets.
 
 ---
 
