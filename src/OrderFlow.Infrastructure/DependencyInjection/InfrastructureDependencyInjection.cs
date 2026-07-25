@@ -6,28 +6,30 @@ using OrderFlow.Domain.Repositories;
 using OrderFlow.Infrastructure.Persistence.Context;
 using OrderFlow.Infrastructure.Persistence.Repositories;
 using OrderFlow.Infrastructure.Persistence.UnitOfWork;
+using OrderFlow.Infrastructure.Messaging.RabbitMQ.Configuration;
 
-namespace OrderFlow.Infrastructure.DependencyInjection
+namespace OrderFlow.Infrastructure.DependencyInjection;
+
+public static class InfrastructureDependencyInjection
 {
-    public static class InfrastructureDependencyInjection
+    public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
+        services.AddRabbitMqConfiguration(configuration);
+
+        var connectionString = configuration.GetConnectionString("OrderFlowDatabase");
+
+        if (string.IsNullOrEmpty(connectionString))
+            throw new InvalidOperationException("Connection string 'OrderFlowDatabase' was not configured");
+
+        services.AddDbContext<OrderFlowDbContext>(options =>
         {
-            var connectionString = configuration.GetConnectionString("OrderFlowDatabase");
+            options.UseSqlServer(connectionString);
+        });
 
-            if (string.IsNullOrEmpty(connectionString))
-                throw new InvalidOperationException("Connection string 'OrderFlowDatabase' was not configured");
+        services.AddScoped<IOrderRepository, OrderRepository>();
+        services.AddScoped<IOrderReadRepository, OrderReadRepository>();
+        services.AddScoped<IUnitOfWork, UnitOfWork>();
 
-            services.AddDbContext<OrderFlowDbContext>(options =>
-            {
-                options.UseSqlServer(connectionString);
-            });
-
-            services.AddScoped<IOrderRepository, OrderRepository>();
-            services.AddScoped<IOrderReadRepository, OrderReadRepository>();
-            services.AddScoped<IUnitOfWork, UnitOfWork>();
-
-            return services;
-        }
+        return services;
     }
 }

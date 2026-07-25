@@ -1,12 +1,11 @@
 ﻿using FluentValidation;
 
-namespace OrderFlow.Application.Features.Orders.Commands.CancelOrder
+namespace OrderFlow.Application.Features.Orders.Commands.CancelOrder;
+
+public sealed class CancelOrderCommandValidator : AbstractValidator<CancelOrderCommand>
 {
-    public sealed class CancelOrderCommandValidator : AbstractValidator<CancelOrderCommand>
+    public CancelOrderCommandValidator()
     {
-        public CancelOrderCommandValidator()
-        {
-            RuleFor(x => x.OrderId).NotEmpty();
-        }
+        RuleFor(x => x.OrderId).NotEmpty();
     }
 }

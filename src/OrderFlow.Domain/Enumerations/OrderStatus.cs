@@ -1,14 +1,13 @@
 ﻿using System.ComponentModel;
 
-namespace OrderFlow.Domain.Enumerations
+namespace OrderFlow.Domain.Enumerations;
+
+public enum OrderStatus
 {
-    public enum OrderStatus
-    {
-        [Description("Pending")]
-        PENDING = 1,
-        [Description("Paid")]
-        PAID = 2,
-        [Description("Cancelled")]
-        CANCELLED = 3
-    }
+    [Description("Pending")]
+    PENDING = 1,
+    [Description("Paid")]
+    PAID = 2,
+    [Description("Cancelled")]
+    CANCELLED = 3
 }

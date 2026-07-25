@@ -1,12 +1,11 @@
 ﻿using FluentValidation;
 
-namespace OrderFlow.Application.Features.Orders.Queries.GetOrderById
+namespace OrderFlow.Application.Features.Orders.Queries.GetOrderById;
+
+public sealed class GetOrderByIdQueryValidator : AbstractValidator<GetOrderByIdQuery>
 {
-    public sealed class GetOrderByIdQueryValidator : AbstractValidator<GetOrderByIdQuery>
+    public GetOrderByIdQueryValidator()
     {
-        public GetOrderByIdQueryValidator()
-        {
-            RuleFor(x => x.OrderId).NotEmpty();
-        }
+        RuleFor(x => x.OrderId).NotEmpty();
     }
 }

@@ -4,26 +4,25 @@ using Microsoft.Extensions.DependencyInjection;
 using OrderFlow.Application.Behaviors;
 using System.Reflection;
 
-namespace OrderFlow.Application.DependencyInjection
+namespace OrderFlow.Application.DependencyInjection;
+
+public static class ApplicationDependencyInjection
 {
-    public static class ApplicationDependencyInjection
+    public static IServiceCollection AddApplication(this IServiceCollection services)
     {
-        public static IServiceCollection AddApplication(this IServiceCollection services)
+        var assembly = Assembly.GetExecutingAssembly();
+
+        services.AddMediatR(configuration =>
         {
-            var assembly = Assembly.GetExecutingAssembly();
+            configuration.RegisterServicesFromAssembly(assembly);
+        });
 
-            services.AddMediatR(configuration =>
-            {
-                configuration.RegisterServicesFromAssembly(assembly);
-            });
+        services.AddValidatorsFromAssembly(assembly);
 
-            services.AddValidatorsFromAssembly(assembly);
+        services.AddTransient(
+            typeof(IPipelineBehavior<,>),
+            typeof(ValidationBehavior<,>));
 
-            services.AddTransient(
-                typeof(IPipelineBehavior<,>),
-                typeof(ValidationBehavior<,>));
-
-            return services;
-        }
+        return services;
     }
 }

@@ -1,12 +1,11 @@
 ﻿using FluentValidation;
 
-namespace OrderFlow.Application.Features.Orders.Commands.PayOrder
+namespace OrderFlow.Application.Features.Orders.Commands.PayOrder;
+
+public sealed class PayOrderCommandValidator : AbstractValidator<PayOrderCommand>
 {
-    public sealed class PayOrderCommandValidator : AbstractValidator<PayOrderCommand>
+    public PayOrderCommandValidator()
     {
-        public PayOrderCommandValidator()
-        {
-            RuleFor(x => x.OrderId).NotEmpty();
-        }
+        RuleFor(x => x.OrderId).NotEmpty();
     }
 }

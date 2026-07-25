@@ -3,129 +3,128 @@ using OrderFlow.Domain.Enumerations;
 using OrderFlow.Domain.Exceptions;
 using OrderFlow.Domain.Events;
 
-namespace OrderFlow.Domain.Entities
+namespace OrderFlow.Domain.Entities;
+
+public sealed class Order : Entity
 {
-    public sealed class Order : Entity
+    private readonly List<OrderItem> _items = [];
+
+    public Guid CustomerId { get; private set; }
+
+    public DateTime CreatedAt { get; private set; }
+
+    public OrderStatus Status { get; private set; }
+
+    public decimal TotalAmount { get; private set; }
+
+    public IReadOnlyCollection<OrderItem> Items => _items.AsReadOnly();
+
+    private Order() { }
+
+    public Order(Guid customerId, Guid productId, int quantity, decimal unitPrice)
     {
-        private readonly List<OrderItem> _items = [];
+        if (customerId == Guid.Empty)
+            throw new DomainException("CustomerId cannot be empty.");
 
-        public Guid CustomerId { get; private set; }
+        CustomerId = customerId;
+        CreatedAt = DateTime.UtcNow;
+        Status = OrderStatus.PENDING;
 
-        public DateTime CreatedAt { get; private set; }
+        AddItem(productId, quantity, unitPrice);
 
-        public OrderStatus Status { get; private set; }
+        RaiseDomainEvent(new OrderCreatedDomainEvent(Id, CustomerId, TotalAmount));
+    }
 
-        public decimal TotalAmount { get; private set; }
+    public void AddItem(Guid productId, int quantity, decimal unitPrice)
+    {
+        if (Status == OrderStatus.CANCELLED)
+            throw new DomainException("Cannot add items to a cancelled order.");
 
-        public IReadOnlyCollection<OrderItem> Items => _items.AsReadOnly();
+        var existingItem = FindItem(productId);
 
-        private Order() { }
-
-        public Order(Guid customerId, Guid productId, int quantity, decimal unitPrice)
+        if (existingItem is not null)
         {
-            if (customerId == Guid.Empty)
-                throw new DomainException("CustomerId cannot be empty.");
-
-            CustomerId = customerId;
-            CreatedAt = DateTime.UtcNow;
-            Status = OrderStatus.PENDING;
-
-            AddItem(productId, quantity, unitPrice);
-
-            RaiseDomainEvent(new OrderCreatedDomainEvent(Id, CustomerId, TotalAmount));
-        }
-
-        public void AddItem(Guid productId, int quantity, decimal unitPrice)
-        {
-            if (Status == OrderStatus.CANCELLED)
-                throw new DomainException("Cannot add items to a cancelled order.");
-
-            var existingItem = FindItem(productId);
-
-            if (existingItem is not null)
-            {
-                var newQuantity = existingItem.Quantity + quantity;
-                existingItem.ChangeQuantity(newQuantity);
-                existingItem.ChangeUnitPrice(unitPrice);
-
-                RecalculateTotal();
-
-                return;
-            }
-
-            var item = new OrderItem(productId, quantity, unitPrice);
-            _items.Add(item);
+            var newQuantity = existingItem.Quantity + quantity;
+            existingItem.ChangeQuantity(newQuantity);
+            existingItem.ChangeUnitPrice(unitPrice);
 
             RecalculateTotal();
+
+            return;
         }
 
-        private void RecalculateTotal()
-        {
-            TotalAmount = _items.Sum(x => x.Total);
-        }
+        var item = new OrderItem(productId, quantity, unitPrice);
+        _items.Add(item);
 
-        public void RemoveItem(Guid productId)
-        {
-            if (Status == OrderStatus.CANCELLED)
-                throw new DomainException("Cannot remove items from a cancelled order.");
+        RecalculateTotal();
+    }
 
-            var item = FindItem(productId);
+    private void RecalculateTotal()
+    {
+        TotalAmount = _items.Sum(x => x.Total);
+    }
 
-            if (item is null)
-                throw new DomainException("Product not found in the order.");
+    public void RemoveItem(Guid productId)
+    {
+        if (Status == OrderStatus.CANCELLED)
+            throw new DomainException("Cannot remove items from a cancelled order.");
 
-            if (_items.Count == 1)
-                throw new DomainException("An order must contain at least one item.");
+        var item = FindItem(productId);
 
-            _items.Remove(item);
+        if (item is null)
+            throw new DomainException("Product not found in the order.");
 
-            RecalculateTotal();
-        }
+        if (_items.Count == 1)
+            throw new DomainException("An order must contain at least one item.");
 
-        public void ChangeItemQuantity(Guid productId, int quantity)
-        {
-            if (Status == OrderStatus.CANCELLED)
-                throw new DomainException("Cannot change items from a cancelled order.");
+        _items.Remove(item);
 
-            var item = FindItem(productId);
+        RecalculateTotal();
+    }
 
-            if (item is null)
-                throw new DomainException("Product not found in the order.");
+    public void ChangeItemQuantity(Guid productId, int quantity)
+    {
+        if (Status == OrderStatus.CANCELLED)
+            throw new DomainException("Cannot change items from a cancelled order.");
 
-            item.ChangeQuantity(quantity);
+        var item = FindItem(productId);
 
-            RecalculateTotal();
-        }
+        if (item is null)
+            throw new DomainException("Product not found in the order.");
 
-        public void Cancel()
-        {
-            if (Status == OrderStatus.CANCELLED)
-                throw new DomainException("Order is already cancelled.");
+        item.ChangeQuantity(quantity);
 
-            if (Status == OrderStatus.PAID)
-                throw new DomainException("Paid orders cannot be cancelled.");
+        RecalculateTotal();
+    }
 
-            Status = OrderStatus.CANCELLED;
+    public void Cancel()
+    {
+        if (Status == OrderStatus.CANCELLED)
+            throw new DomainException("Order is already cancelled.");
 
-            RaiseDomainEvent(new OrderCancelledDomainEvent(Id, CustomerId, TotalAmount));
-        }
+        if (Status == OrderStatus.PAID)
+            throw new DomainException("Paid orders cannot be cancelled.");
 
-        public void Pay()
-        {
-            if (Status == OrderStatus.CANCELLED)
-                throw new DomainException("Cancelled orders cannot be paid.");
+        Status = OrderStatus.CANCELLED;
 
-            if (Status == OrderStatus.PAID)
-                throw new DomainException("Order is already paid.");
+        RaiseDomainEvent(new OrderCancelledDomainEvent(Id, CustomerId, TotalAmount));
+    }
 
-            Status = OrderStatus.PAID;
+    public void Pay()
+    {
+        if (Status == OrderStatus.CANCELLED)
+            throw new DomainException("Cancelled orders cannot be paid.");
 
-            RaiseDomainEvent(new OrderPaidDomainEvent(Id, CustomerId, TotalAmount));
-        }
+        if (Status == OrderStatus.PAID)
+            throw new DomainException("Order is already paid.");
 
-        private OrderItem? FindItem(Guid productId)
-        {
-            return _items.FirstOrDefault(x => x.ProductId == productId);
-        }
+        Status = OrderStatus.PAID;
+
+        RaiseDomainEvent(new OrderPaidDomainEvent(Id, CustomerId, TotalAmount));
+    }
+
+    private OrderItem? FindItem(Guid productId)
+    {
+        return _items.FirstOrDefault(x => x.ProductId == productId);
     }
 }

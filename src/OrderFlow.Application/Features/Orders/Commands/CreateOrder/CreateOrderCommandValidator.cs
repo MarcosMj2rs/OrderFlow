@@ -1,16 +1,15 @@
 ﻿using FluentValidation;
 
-namespace OrderFlow.Application.Features.Orders.Commands.CreateOrder
+namespace OrderFlow.Application.Features.Orders.Commands.CreateOrder;
+
+public sealed class CreateOrderCommandValidator : AbstractValidator<CreateOrderCommand>
 {
-    public sealed class CreateOrderCommandValidator : AbstractValidator<CreateOrderCommand>
+    public CreateOrderCommandValidator()
     {
-        public CreateOrderCommandValidator()
-        {
-            RuleFor(x => x.CustomerId).NotEmpty();
+        RuleFor(x => x.CustomerId).NotEmpty();
 
-            RuleFor(x => x.Items).NotEmpty();
+        RuleFor(x => x.Items).NotEmpty();
 
-            RuleForEach(x => x.Items).SetValidator(new CreateOrderItemCommandValidator());
-        }
+        RuleForEach(x => x.Items).SetValidator(new CreateOrderItemCommandValidator());
     }
 }
