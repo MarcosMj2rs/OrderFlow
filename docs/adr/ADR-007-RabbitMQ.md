@@ -346,18 +346,28 @@ A[Command Handler]
 
 --> B[Aggregate Root]
 
---> C[Domain Event]
+--> C[RaiseDomainEvent]
 
---> D[IEventPublisher]
+--> D[UnitOfWork]
 
---> E[RabbitMqEventPublisher]
+--> E[IDomainEventCollector]
 
---> F[Topic Exchange]
+--> F[SaveChanges]
+
+--> G[IDomainEventDispatcher]
+
+--> H[IEventPublisher]
+
+--> I[RabbitMqEventPublisher]
+
+--> J[Topic Exchange]
 ```
 
 Observe que o Command Handler conhece apenas a abstração `IEventPublisher`.
 
 Toda a infraestrutura permanece encapsulada na camada Infrastructure.
+
+Durante a execução de um caso de uso, o Aggregate Root registra os eventos de domínio por meio do método RaiseDomainEvent(). Esses eventos permanecem associados à entidade até que a UnitOfWork execute a persistência das alterações. Após a conclusão bem-sucedida do SaveChanges, o IDomainEventDispatcher é responsável por despachar cada evento utilizando a abstração IEventPublisher, cuja implementação concreta (RabbitMqEventPublisher) publica as mensagens na Exchange orderflow.events. Somente após a persistência e a publicação bem-sucedidas os Domain Events são removidos das entidades.
 
 ---
 
@@ -432,11 +442,11 @@ Será adotada a seguinte convenção de nomenclatura:
 Exemplos:
 
 ```text
-order.created.queue
+orderflow.order-created
 
-order.cancelled.queue
+orderflow.order-cancelled
 
-payment.approved.queue
+orderflow.order-paid
 ```
 
 Quando necessário, filas auxiliares seguirão a mesma convenção de nomenclatura, preservando a padronização da arquitetura.
@@ -658,6 +668,9 @@ Passa a ser responsável por:
 - configuração de Queues;
 - configuração dos Consumers;
 - integração com RabbitMQ.
+- inicialização automática da topologia via HostedService;
+- resolução das Routing Keys (IRabbitMqRoutingKeyResolver);
+- publicação de Domain Events através do RabbitMqEventPublisher.
 
 ---
 

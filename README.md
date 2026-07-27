@@ -142,7 +142,7 @@ O desenvolvimento do OrderFlow foi dividido em capítulos, permitindo acompanhar
 | Capítulo 3 — Domain Events | ✅ |
 | Capítulo 4 — Application (CQRS) | ✅ |
 | Capítulo 5 — Infrastructure | ✅ |
-| Capítulo 6 — RabbitMQ | ⏳ |
+| Capítulo 6 — RabbitMQ | ✅ |
 | Capítulo 7 — Background Workers | ⏳ |
 | Capítulo 8 — WebApi | ⏳ |
 | Capítulo 9 — Outbox Pattern | ⏳ |
@@ -230,7 +230,7 @@ O desenvolvimento do OrderFlow foi dividido em capítulos, permitindo acompanhar
 | Dependency Injection | ✅ |
 | User Secrets | ✅ |
 | Migrations | ✅ |
-| RabbitMQ | ⏳ |
+| RabbitMQ | ✅ |
 | Outbox Pattern | ⏳ |
 | Inbox Pattern | ⏳ |
 | Idempotência | ⏳ |
