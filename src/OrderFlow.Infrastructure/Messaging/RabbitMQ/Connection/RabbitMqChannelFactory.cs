@@ -11,7 +11,7 @@ public sealed class RabbitMqChannelFactory
         _rabbitMqConnection = rabbitMqConnection;
     }
 
-    public async Task<IChannel> CreateChanelAsync(bool publisherConfirmationsEnabled = false,
+    public async Task<IChannel> CreateChannelAsync(bool publisherConfirmationsEnabled = false,
         CancellationToken cancellationToken = default)
     {
         IConnection connection = await _rabbitMqConnection.GetConnectionAsync(cancellationToken);

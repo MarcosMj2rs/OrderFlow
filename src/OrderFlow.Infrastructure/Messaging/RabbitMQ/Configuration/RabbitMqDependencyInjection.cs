@@ -1,6 +1,9 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using OrderFlow.Application.Abstractions.Messaging;
 using OrderFlow.Infrastructure.Messaging.RabbitMQ.Connection;
+using OrderFlow.Infrastructure.Messaging.RabbitMQ.Publishers;
+using OrderFlow.Infrastructure.Messaging.RabbitMQ.Routing;
 
 namespace OrderFlow.Infrastructure.Messaging.RabbitMQ.Configuration;
 
@@ -22,6 +25,8 @@ public static class RabbitMqDependencyInjection
         services.AddSingleton<RabbitMqConnection>();
         services.AddSingleton<RabbitMqChannelFactory>();
         services.AddSingleton<RabbitMqTopologyInitializer>();
+        services.AddSingleton<IRabbitMqRoutingKeyResolver, RabbitMqRoutingKeyResolver>();
+        services.AddSingleton<IEventPublisher, RabbitMqEventPublisher>();
 
         return services;
     }

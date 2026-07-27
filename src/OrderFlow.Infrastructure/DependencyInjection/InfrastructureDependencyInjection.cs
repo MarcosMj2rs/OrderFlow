@@ -7,6 +7,7 @@ using OrderFlow.Infrastructure.Persistence.Context;
 using OrderFlow.Infrastructure.Persistence.Repositories;
 using OrderFlow.Infrastructure.Persistence.UnitOfWork;
 using OrderFlow.Infrastructure.Messaging.RabbitMQ.Configuration;
+using OrderFlow.Infrastructure.Persistence.DomainEvents;
 
 namespace OrderFlow.Infrastructure.DependencyInjection;
 
@@ -28,6 +29,7 @@ public static class InfrastructureDependencyInjection
 
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<IOrderReadRepository, OrderReadRepository>();
+        services.AddScoped<IDomainEventCollector, EfCoreDomainEventCollector>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         return services;

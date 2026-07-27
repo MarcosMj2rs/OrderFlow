@@ -1,5 +1,8 @@
-﻿namespace OrderFlow.Application.Abstractions.Messaging;
+﻿using OrderFlow.Domain.Events;
 
-internal interface IEventPublisher
+namespace OrderFlow.Application.Abstractions.Messaging;
+
+public interface IEventPublisher
 {
+    Task PublishAsync(IDomainEvent domainEvent, CancellationToken cancellationToken = default);
 }
