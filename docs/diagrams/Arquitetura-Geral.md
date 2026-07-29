@@ -1,6 +1,8 @@
 # Arquitetura Geral
 
-Este diagrama representa a arquitetura atual do **OrderFlow**, contemplando o modelo de domínio, a camada de aplicação e a infraestrutura de persistência implementada até o momento.
+Este diagrama representa a arquitetura atual do **OrderFlow**, destacando a organização das camadas **Domain**, **Application** e **Infrastructure**, bem como os principais componentes e seus relacionamentos.
+
+A arquitetura segue os princípios de **Clean Architecture**, **Domain-Driven Design (DDD)** e **CQRS**, mantendo a separação de responsabilidades entre as camadas e o baixo acoplamento entre seus componentes.
 
 ```mermaid
 classDiagram

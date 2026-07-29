@@ -61,24 +61,56 @@ Atualmente o projeto já possui as camadas **Domain**, **Application** e **Infra
 O projeto segue os princípios da **Clean Architecture**, mantendo as dependências sempre apontando para o centro da aplicação.
 
 ```text
-Client
-   │
-   ▼
-WebApi
-   │
-   ▼
-Application
-   │
-   ▼
-Domain
+Client (Swagger)
+
+        │
+        ▼
+
+OrderFlow.Api
+    │
+    ├── Controllers
+    ├── Contracts
+    ├── AutoMapper
+    └── API Versioning
+
+        │
+        ▼
 
 Application
-   │
-   ▼
+    │
+    ├── Commands
+    ├── Queries
+    ├── Handlers
+    ├── Validators
+    └── Behaviors
+
+        │
+        ▼
+
+Domain
+    │
+    ├── Aggregate Root
+    ├── Entities
+    ├── Domain Events
+    └── Business Rules
+
+        │
+        ▼
+
 Infrastructure
-   │
-   ▼
+    │
+    ├── EF Core
+    ├── SQL Server
+    ├── RabbitMQ Publisher
+    ├── Repository
+    └── UnitOfWork
+
+        │
+        ▼
+
 SQL Server
+
+RabbitMQ
 ```
 
 Cada camada possui responsabilidades bem definidas.
