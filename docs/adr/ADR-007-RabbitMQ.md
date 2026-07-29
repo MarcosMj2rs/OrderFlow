@@ -742,6 +742,7 @@ Os seguintes assuntos serão detalhados em documentos específicos:
 | Data | Alteração |
 |------|-----------|
 | 20/07/2026 | Criação da ADR-007 e definição da arquitetura base de mensageria com RabbitMQ. |
+| 27/07/2026 |Atualização da ADR após a implementação da infraestrutura RabbitMQ, incluindo topologia automática, dispatcher de eventos, publisher e integração com a UnitOfWork. |
 
 ---
 
