@@ -4,6 +4,7 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using OrderFlow.Api.Contracts.Orders.Requests;
 using OrderFlow.Api.Contracts.Orders.Responses;
+using OrderFlow.Application.Features.Orders.Commands.PayOrder;
 using OrderFlow.Application.Features.Orders.Queries.GetOrderById;
 using OrderFlow.Application.Features.Orders.Queries.GetOrders;
 using ApiCreateOrderResponse = OrderFlow.Api.Contracts.Orders.Responses.CreateOrderResponse;
@@ -66,5 +67,17 @@ public class OrdersController : ControllerBase
         IReadOnlyCollection<OrderSummaryResponse> response = _mapper.Map<IReadOnlyCollection<OrderSummaryResponse>>(result);
 
         return Ok(response);
+    }
+
+    [HttpPatch("{id:guid}/pay")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> PayAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var command = new PayOrderCommand(id);
+        await _sender.Send(command, cancellationToken);
+
+        return NoContent();
     }
 }

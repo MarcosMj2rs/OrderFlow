@@ -27,7 +27,8 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddApplication();
-builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddInfrastructure(
+builder.Configuration, new InfrastructureOptions { EnableEfCoreLogging = builder.Environment.IsDevelopment() });
 builder.Services.AddHostedService<RabbitMqTopologyHostedService>();
 
 var app = builder.Build();

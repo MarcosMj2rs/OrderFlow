@@ -99,11 +99,8 @@ public sealed class Order : Entity
 
     public void Cancel()
     {
-        if (Status == OrderStatus.CANCELLED)
-            throw new DomainException("Order is already cancelled.");
-
-        if (Status == OrderStatus.PAID)
-            throw new DomainException("Paid orders cannot be cancelled.");
+        if (Status != OrderStatus.PENDING)
+            throw new DomainException("Only pending orders can be cancelled.");
 
         Status = OrderStatus.CANCELLED;
 
@@ -112,11 +109,8 @@ public sealed class Order : Entity
 
     public void Pay()
     {
-        if (Status == OrderStatus.CANCELLED)
-            throw new DomainException("Cancelled orders cannot be paid.");
-
-        if (Status == OrderStatus.PAID)
-            throw new DomainException("Order is already paid.");
+        if (Status != OrderStatus.PENDING)
+            throw new DomainException("Only pending orders can be paid.");
 
         Status = OrderStatus.PAID;
 

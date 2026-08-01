@@ -17,7 +17,7 @@ public sealed class OrderRepository : IOrderRepository
     public async Task<Order?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         return await _context.Orders
-            .Include("_items")
+            .Include(order => order.Items)
             .FirstOrDefaultAsync(order => order.Id == id, cancellationToken);
     }
 

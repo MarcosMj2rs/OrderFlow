@@ -1,19 +1,23 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using OrderFlow.Application.Abstractions.Persistence;
 using OrderFlow.Domain.Repositories;
+using OrderFlow.Infrastructure.Messaging.RabbitMQ.Configuration;
 using OrderFlow.Infrastructure.Persistence.Context;
+using OrderFlow.Infrastructure.Persistence.DomainEvents;
 using OrderFlow.Infrastructure.Persistence.Repositories;
 using OrderFlow.Infrastructure.Persistence.UnitOfWork;
-using OrderFlow.Infrastructure.Messaging.RabbitMQ.Configuration;
-using OrderFlow.Infrastructure.Persistence.DomainEvents;
+using System.Diagnostics;
 
 namespace OrderFlow.Infrastructure.DependencyInjection;
 
 public static class InfrastructureDependencyInjection
 {
-    public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddInfrastructure(this IServiceCollection services,
+                                                       IConfiguration configuration,
+                                                       InfrastructureOptions infrastructureOptions)
     {
         services.AddRabbitMqConfiguration(configuration);
 
@@ -25,6 +29,14 @@ public static class InfrastructureDependencyInjection
         services.AddDbContext<OrderFlowDbContext>(options =>
         {
             options.UseSqlServer(connectionString);
+
+            if (infrastructureOptions.EnableEfCoreLogging)
+            {
+                options
+                    .EnableDetailedErrors()
+                    .EnableSensitiveDataLogging()
+                    .LogTo(message => Debug.WriteLine(message), LogLevel.Information);
+            }
         });
 
         services.AddScoped<IOrderRepository, OrderRepository>();
