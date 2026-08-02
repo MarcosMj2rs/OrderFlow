@@ -40,10 +40,10 @@ public class OrdersController : ControllerBase
 
         ApiCreateOrderResponse response = _mapper.Map<ApiCreateOrderResponse>(result);
 
-        return CreatedAtAction(nameof(CreateAsync), new { Version = "1", id = response.OrderId }, response);
+        return CreatedAtRoute(nameof(GetByIdAsync), new { version = "1.0", id = response.OrderId }, response);
     }
 
-    [HttpGet("{id:guid}")]
+    [HttpGet("{id:guid}", Name = nameof(GetByIdAsync))]
     [ProducesResponseType(typeof(OrderResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<OrderResponse>> GetByIdAsync(Guid id, CancellationToken cancellationToken)
@@ -60,7 +60,7 @@ public class OrdersController : ControllerBase
         return Ok(response);
     }
 
-    [HttpGet]
+    [HttpGet(Name = nameof(GetAllAsync))]
     [ProducesResponseType(typeof(IReadOnlyCollection<OrderSummaryResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyCollection<OrderSummaryResponse>>> GetAllAsync(CancellationToken cancellationToken)
     {
@@ -70,7 +70,7 @@ public class OrdersController : ControllerBase
         return Ok(response);
     }
 
-    [HttpPatch("{id:guid}/pay")]
+    [HttpPatch("{id:guid}/pay", Name = nameof(PayAsync))]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -82,7 +82,7 @@ public class OrdersController : ControllerBase
         return NoContent();
     }
 
-    [HttpPatch("{id:guid}/cancel")]
+    [HttpPatch("{id:guid}/cancel", Name = nameof(CancelAsync))]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

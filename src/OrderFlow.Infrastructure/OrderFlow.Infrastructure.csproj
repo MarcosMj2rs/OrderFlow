@@ -20,7 +20,6 @@
 
   <ItemGroup>
     <Folder Include="Messaging\Configuration\" />
-    <Folder Include="Messaging\Consumers\" />
     <Folder Include="Messaging\Exchanges\" />
     <Folder Include="Messaging\Publishers\" />
     <Folder Include="Messaging\Queues\" />
