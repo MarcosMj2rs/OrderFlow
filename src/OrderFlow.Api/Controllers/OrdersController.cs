@@ -4,6 +4,7 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using OrderFlow.Api.Contracts.Orders.Requests;
 using OrderFlow.Api.Contracts.Orders.Responses;
+using OrderFlow.Application.Features.Orders.Commands.CancelOrder;
 using OrderFlow.Application.Features.Orders.Commands.PayOrder;
 using OrderFlow.Application.Features.Orders.Queries.GetOrderById;
 using OrderFlow.Application.Features.Orders.Queries.GetOrders;
@@ -76,6 +77,18 @@ public class OrdersController : ControllerBase
     public async Task<IActionResult> PayAsync(Guid id, CancellationToken cancellationToken)
     {
         var command = new PayOrderCommand(id);
+        await _sender.Send(command, cancellationToken);
+
+        return NoContent();
+    }
+
+    [HttpPatch("{id:guid}/cancel")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CancelAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var command = new CancelOrderCommand(id);
         await _sender.Send(command, cancellationToken);
 
         return NoContent();
