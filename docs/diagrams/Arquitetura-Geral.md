@@ -498,7 +498,7 @@ RabbitMqTopologyInitializer --> RabbitMqChannelFactory
 
 RabbitMqEventPublisher --> RabbitMQ : publica eventos
 RabbitMqTopologyInitializer --> RabbitMQ : declara topologia
-```
+
 %% ==========================
 %% WORKER
 %% ==========================
@@ -572,7 +572,7 @@ A[RabbitMQ Queue]
 --> C[OrderCreatedConsumer]
 --> D[ProcessMessageAsync]
 --> E[BasicAck]
-
+```
 
 
 Responsabilidades das camadas
