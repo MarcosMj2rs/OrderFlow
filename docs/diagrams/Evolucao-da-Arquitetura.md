@@ -163,9 +163,85 @@ Foi implementada a primeira versão da API REST.
 
 # Próxima etapa --- Processamento Assíncrono
 
--   Capítulo 8 — Consumers e Background Workers
+# Capítulo 6 — RabbitMQ
 
-**Status:** 🚧 Em desenvolvimento
+Foi implementada toda a infraestrutura de mensageria do OrderFlow utilizando RabbitMQ.
+
+## Principais componentes implementados
+
+### Infraestrutura
+
+- RabbitMqConnection
+- RabbitMqChannelFactory
+- RabbitMqTopologyInitializer
+- RabbitMqRoutingKeyResolver
+- RabbitMqEventPublisher
+
+### Mensageria
+
+- Exchanges
+- Queues
+- Routing Keys
+- Publisher
+- Manual ACK
+- QoS (Prefetch)
+
+### Consumer Infrastructure
+
+- RabbitMqConsumerBase<TMessage>
+- OrderCreatedConsumer
+- OrderCreatedConsumerHostedService
+
+### Worker
+
+- OrderFlow.Worker.Payments
+
+### Fluxo validado
+
+Order Created
+
+↓
+
+Domain Event
+
+↓
+
+Publisher
+
+↓
+
+RabbitMQ
+
+↓
+
+Worker
+
+↓
+
+Consumer
+
+↓
+
+ACK
+
+## Conceitos estudados
+
+- Connection
+- Channel
+- Exchange
+- Queue
+- Binding
+- Routing Key
+- Publisher
+- Consumer
+- Hosted Service
+- Manual ACK
+- Prefetch
+- QoS
+
+Foi realizado o primeiro teste end-to-end entre a API e um Worker independente utilizando RabbitMQ.
+
+**Status:** ✅ Concluído
 
 ------------------------------------------------------------------------
 

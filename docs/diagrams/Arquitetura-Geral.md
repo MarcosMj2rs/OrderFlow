@@ -499,6 +499,59 @@ RabbitMqTopologyInitializer --> RabbitMqChannelFactory
 RabbitMqEventPublisher --> RabbitMQ : publica eventos
 RabbitMqTopologyInitializer --> RabbitMQ : declara topologia
 ```
+%% ==========================
+%% WORKER
+%% ==========================
+
+class OrderFlowWorkerPayments
+
+class OrderCreatedConsumerHostedService
+
+class RabbitMqConsumerBase~TMessage~
+
+class OrderCreatedConsumer
+
+class OrderCreatedMessage
+
+OrderFlowWorkerPayments --> OrderCreatedConsumerHostedService
+
+OrderCreatedConsumerHostedService --> OrderCreatedConsumer
+
+RabbitMqConsumerBase <|-- OrderCreatedConsumer
+
+OrderCreatedConsumer --> OrderCreatedMessage
+
+OrderCreatedConsumer --> RabbitMQ : consome eventos
+
+OrderCreatedConsumer --> RabbitMqChannelFactory
+
+IDomainEventDispatcher --> OrderCreatedDomainEvent
+IDomainEventDispatcher --> OrderCancelledDomainEvent
+IDomainEventDispatcher --> OrderPaidDomainEvent
+
+OrderCreatedDomainEvent --> RabbitMqEventPublisher
+OrderCancelledDomainEvent --> RabbitMqEventPublisher
+OrderPaidDomainEvent --> RabbitMqEventPublisher
+
+class RabbitMqConsumerBase~TMessage~
+
+RabbitMqConsumerBase <|-- OrderCreatedConsumer
+
+OrderCreatedConsumerHostedService
+
+flowchart LR
+
+A[HTTP POST]
+--> B[OrdersController]
+--> C[CreateOrderCommand]
+--> D[Command Handler]
+--> E[Order]
+--> F[UnitOfWork]
+--> G[DomainEventDispatcher]
+--> H[RabbitMqEventPublisher]
+--> I[RabbitMQ Exchange]
+--> J[Queue]
+
 flowchart LR
 
 A[HTTP GET]
@@ -512,12 +565,21 @@ A[HTTP GET]
 --> I[AutoMapper]
 --> J[HTTP 200]
 
+flowchart LR
+
+A[RabbitMQ Queue]
+--> B[OrderCreatedConsumerHostedService]
+--> C[OrderCreatedConsumer]
+--> D[ProcessMessageAsync]
+--> E[BasicAck]
+
+
+
 Responsabilidades das camadas
 Camada	Responsabilidade
 
 Api	Receber requisições HTTP, mapear contratos, enviar Commands e Queries e produzir respostas HTTP.
 Application	Orquestrar casos de uso, validar entradas e depender apenas de abstrações.
 Domain	Concentrar entidades, invariantes, transições de estado e Domain Events.
-Infrastructure	Implementar persistência, Unit of Work, integração com SQL Server e mensageria RabbitMQ.
-
+Infrastructure	Implementar persistência, Unit of Work, SQL Server, RabbitMQ, Publishers, Consumers, Workers e integração com sistemas externos.
 A camada Domain permanece independente de frameworks, banco de dados, HTTP e RabbitMQ. As integrações externas são encapsuladas pela Infrastructure e acessadas pela Application por meio de abstrações.
