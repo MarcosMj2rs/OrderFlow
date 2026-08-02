@@ -542,6 +542,9 @@ RabbitMqConsumerBase <|-- OrderCreatedConsumer
 OrderCreatedConsumerHostedService
 ```
 
+## Fluxo de criação
+
+```mermaid
 flowchart LR
 
 A[HTTP POST]
@@ -554,29 +557,32 @@ A[HTTP POST]
 --> H[RabbitMqEventPublisher]
 --> I[RabbitMQ Exchange]
 --> J[Queue]
+```
 
+## Fluxo de criação
+
+```mermaid
 flowchart LR
 
-A[HTTP GET]
+A[HTTP POST]
 --> B[OrdersController]
---> C[Query]
---> D[MediatR]
---> E[Query Handler]
---> F[IOrderReadRepository]
---> G[OrderReadRepository]
---> H[SQL Server]
---> I[AutoMapper]
---> J[HTTP 200]
+--> C[CreateOrderCommand]
+--> D[Command Handler]
+--> E[Order]
+--> F[UnitOfWork]
+--> G[DomainEventDispatcher]
+--> H[RabbitMqEventPublisher]
+--> I[RabbitMQ Exchange]
+--> J[Queue]
+```
 
+```mermaid
 flowchart LR
-
 A[RabbitMQ Queue]
 --> B[OrderCreatedConsumerHostedService]
 --> C[OrderCreatedConsumer]
 --> D[ProcessMessageAsync]
---> E[BasicAck]
-
-
+```
 
 Responsabilidades das camadas
 Camada	Responsabilidade
