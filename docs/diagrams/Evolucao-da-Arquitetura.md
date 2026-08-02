@@ -149,6 +149,8 @@ Foi implementada a primeira versão da API REST.
 -   POST /orders;
 -   GET /orders;
 -   GET /orders/{id};
+- 	PATCH /orders/{id}/pay
+- 	PATCH /orders/{id}/cancel
 -   API Versioning;
 -   Swagger/OpenAPI;
 -   AutoMapper;
@@ -161,12 +163,7 @@ Foi implementada a primeira versão da API REST.
 
 # Próxima etapa --- Processamento Assíncrono
 
--   Consumers;
--   Background Workers;
--   ACK/NACK;
--   Retry;
--   Prefetch Count;
--   Dead Letter Queue (DLQ).
+-   Capítulo 8 — Consumers e Background Workers
 
 **Status:** 🚧 Em desenvolvimento
 
