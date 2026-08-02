@@ -498,7 +498,9 @@ RabbitMqTopologyInitializer --> RabbitMqChannelFactory
 
 RabbitMqEventPublisher --> RabbitMQ : publica eventos
 RabbitMqTopologyInitializer --> RabbitMQ : declara topologia
-
+```
+```mermaid
+classDiagram
 %% ==========================
 %% WORKER
 %% ==========================
@@ -538,6 +540,7 @@ class RabbitMqConsumerBase~TMessage~
 RabbitMqConsumerBase <|-- OrderCreatedConsumer
 
 OrderCreatedConsumerHostedService
+```
 
 flowchart LR
 
@@ -572,7 +575,7 @@ A[RabbitMQ Queue]
 --> C[OrderCreatedConsumer]
 --> D[ProcessMessageAsync]
 --> E[BasicAck]
-```
+
 
 
 Responsabilidades das camadas
