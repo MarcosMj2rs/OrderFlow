@@ -5,6 +5,8 @@ using OrderFlow.Infrastructure.Messaging.RabbitMQ.Configuration;
 using OrderFlow.Infrastructure.Messaging.RabbitMQ.Connection;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using OrderFlow.Infrastructure.Messaging.Exceptions;
+using System.Text;
 
 namespace OrderFlow.Infrastructure.Messaging.Consumers;
 
@@ -20,8 +22,10 @@ public abstract class RabbitMqConsumerBase<TMessage> : IAsyncDisposable
     private readonly ILogger _logger;
 
     private IChannel? _channel;
+    private IChannel? _publishChannel;
     private string? _consumerTag;
     private bool _disposed;
+    private const string RetryCountHeader = "x-orderflow-retry-count";
 
     protected RabbitMqConsumerBase(RabbitMqChannelFactory channelFactory,
                                    IOptions<RabbitMqOptions> options,
@@ -33,6 +37,8 @@ public abstract class RabbitMqConsumerBase<TMessage> : IAsyncDisposable
     }
 
     protected abstract string QueueName { get; }
+    protected abstract string RetryRoutingKey { get; }
+    protected abstract string DeadLetterRoutingKey { get; }
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
@@ -42,6 +48,9 @@ public abstract class RabbitMqConsumerBase<TMessage> : IAsyncDisposable
             return;
 
         _channel = await _channelFactory.CreateChannelAsync(cancellationToken: cancellationToken);
+
+        _publishChannel = await _channelFactory.CreateChannelAsync(publisherConfirmationsEnabled: true,
+                                                                   cancellationToken: cancellationToken);
 
         await _channel.BasicQosAsync(prefetchSize: 0,
                                      prefetchCount: _options.PrefetchCount,
@@ -93,10 +102,25 @@ public abstract class RabbitMqConsumerBase<TMessage> : IAsyncDisposable
                              QueueName,
                              eventArgs.DeliveryTag);
 
-            await _channel.BasicNackAsync(deliveryTag: eventArgs.DeliveryTag,
-                                          multiple: false,
-                                          requeue: false,
-                                          cancellationToken: eventArgs.CancellationToken);
+            await HandlePermanentFailureAsync(eventArgs, exception);
+        }
+        catch (PermanentMessagingException exception)
+        {
+            _logger.LogError(exception,
+                             "Permanent messaging failure. Queue: {QueueName}. DeliveryTag: {DeliveryTag}",
+                             QueueName,
+                             eventArgs.DeliveryTag);
+
+            await HandlePermanentFailureAsync(eventArgs, exception);
+        }
+        catch (TransientMessagingException exception)
+        {
+            _logger.LogWarning(exception,
+                               "Transient messaging failure. Queue: {QueueName}. DeliveryTag: {DeliveryTag}",
+                               QueueName,
+                               eventArgs.DeliveryTag);
+
+            await HandleTransientFailureAsync(eventArgs, exception);
         }
         catch (Exception exception)
         {
@@ -105,10 +129,7 @@ public abstract class RabbitMqConsumerBase<TMessage> : IAsyncDisposable
                              QueueName,
                              eventArgs.DeliveryTag);
 
-            await _channel.BasicNackAsync(deliveryTag: eventArgs.DeliveryTag,
-                                          multiple: false,
-                                          requeue: true,
-                                          cancellationToken: eventArgs.CancellationToken);
+            await HandleTransientFailureAsync(eventArgs, exception);
         }
     }
 
@@ -118,6 +139,16 @@ public abstract class RabbitMqConsumerBase<TMessage> : IAsyncDisposable
     {
         if (_channel is null)
             return;
+
+        if (_publishChannel is not null)
+        {
+            if (_publishChannel.IsOpen)
+                await _publishChannel.CloseAsync(cancellationToken: cancellationToken);
+
+            await _publishChannel.DisposeAsync();
+
+            _publishChannel = null;
+        }
 
         if (!string.IsNullOrWhiteSpace(_consumerTag))
         {
@@ -132,6 +163,16 @@ public abstract class RabbitMqConsumerBase<TMessage> : IAsyncDisposable
 
         _channel = null;
 
+        if (_publishChannel is not null)
+        {
+            if (_publishChannel.IsOpen)
+                await _publishChannel.CloseAsync(cancellationToken: cancellationToken);
+
+            await _publishChannel.DisposeAsync();
+
+            _publishChannel = null;
+        }
+
         _logger.LogInformation("RabbitMQ consumer stopped. Queue: {QueueName}", QueueName);
     }
 
@@ -145,5 +186,106 @@ public abstract class RabbitMqConsumerBase<TMessage> : IAsyncDisposable
         await StopAsync();
 
         GC.SuppressFinalize(this);
+    }
+
+    private async Task HandlePermanentFailureAsync(BasicDeliverEventArgs eventArgs, Exception exception)
+    {
+        int retryCount = GetRetryCount(eventArgs.BasicProperties);
+
+        _logger.LogError(exception,
+                         "Publishing message directly to dead-letter queue. Queue: {QueueName}. RetryCount: {RetryCount}. MessageId: {MessageId}",
+                         QueueName,
+                         retryCount,
+                         eventArgs.BasicProperties.MessageId);
+
+        await PublishAndAcknowledgeAsync(eventArgs, DeadLetterRoutingKey, retryCount);
+    }
+
+    private async Task HandleTransientFailureAsync(BasicDeliverEventArgs eventArgs, Exception exception)
+    {
+        int currentRetryCount = GetRetryCount(eventArgs.BasicProperties);
+
+        int nextRetryCount = currentRetryCount + 1;
+
+        if (nextRetryCount > _options.MaxRetryAttempts)
+        {
+            _logger.LogError(exception,
+                             "Maximum retry attempts exceeded. Queue: {QueueName}. RetryCount: {RetryCount}. MessageId: {MessageId}",
+                             QueueName,
+                             currentRetryCount,
+                             eventArgs.BasicProperties.MessageId);
+
+            await PublishAndAcknowledgeAsync(eventArgs, DeadLetterRoutingKey, currentRetryCount);
+
+            return;
+        }
+
+        _logger.LogWarning(exception,
+                           "Publishing message to retry queue. Queue: {QueueName}. RetryCount: {RetryCount}. MessageId: {MessageId}",
+                           QueueName,
+                           nextRetryCount,
+                           eventArgs.BasicProperties.MessageId);
+
+        await PublishAndAcknowledgeAsync(eventArgs, RetryRoutingKey, nextRetryCount);
+    }
+
+    private static int GetRetryCount(IReadOnlyBasicProperties properties)
+    {
+        if (properties.Headers is null || !properties.Headers.TryGetValue(RetryCountHeader, out object? value) || value is null)
+            return 0;
+
+        return value switch
+        {
+            byte retryCount => retryCount,
+            short retryCount => retryCount,
+            int retryCount => retryCount,
+            long retryCount => checked((int)retryCount),
+            byte[] bytes when int.TryParse(Encoding.UTF8.GetString(bytes), out int parsed) => parsed,
+            _ => 0
+        };
+    }
+
+    private static BasicProperties CreateBasicProperties(IReadOnlyBasicProperties originalProperties, int retryCount)
+    {
+        Dictionary<string, object?> headers = originalProperties.Headers is null
+                ? []
+                : new Dictionary<string, object?>(originalProperties.Headers);
+
+        headers[RetryCountHeader] = retryCount;
+
+        return new BasicProperties
+        {
+            ContentType = originalProperties.ContentType,
+            ContentEncoding = originalProperties.ContentEncoding,
+            DeliveryMode = originalProperties.DeliveryMode,
+            MessageId = originalProperties.MessageId,
+            CorrelationId = originalProperties.CorrelationId,
+            Type = originalProperties.Type,
+            Timestamp = originalProperties.Timestamp,
+            AppId = originalProperties.AppId,
+            Headers = headers
+        };
+    }
+
+    private async Task PublishAndAcknowledgeAsync(BasicDeliverEventArgs eventArgs, string routingKey, int retryCount)
+    {
+        if (_channel is null)
+            throw new InvalidOperationException("RabbitMQ consumer channel was not initialized.");
+
+        if (_publishChannel is null)
+            throw new InvalidOperationException("RabbitMQ publisher channel was not initialized.");
+
+        BasicProperties properties = CreateBasicProperties(eventArgs.BasicProperties, retryCount);
+
+        await _publishChannel.BasicPublishAsync(exchange: _options.ExchangeName,
+                                                routingKey: routingKey,
+                                                mandatory: true,
+                                                basicProperties: properties,
+                                                body: eventArgs.Body,
+                                                cancellationToken: eventArgs.CancellationToken);
+
+        await _channel.BasicAckAsync(deliveryTag: eventArgs.DeliveryTag,
+                                    multiple: false,
+                                    cancellationToken: eventArgs.CancellationToken);
     }
 }

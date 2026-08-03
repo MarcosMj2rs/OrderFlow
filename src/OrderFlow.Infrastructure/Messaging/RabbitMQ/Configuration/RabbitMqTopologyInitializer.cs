@@ -14,6 +14,12 @@ public sealed class RabbitMqTopologyInitializer
     private const string OrderCancelledRoutingKey = "order.cancelled";
     private const string OrderPaidRoutingKey = "order.paid";
 
+    private const string OrderCreatedRetryQueue = "orderflow.order-created.retry";
+    private const string OrderCreatedDeadLetterQueue = "orderflow.order-created.dlq";
+    private const string OrderCreatedRetryRoutingKey = "order.created.retry";
+    private const string OrderCreatedDeadLetterRoutingKey = "order.created.dlq";
+
+
     private readonly RabbitMqChannelFactory _channelFactory;
     private readonly RabbitMqOptions _options;
 
@@ -34,6 +40,10 @@ public sealed class RabbitMqTopologyInitializer
         await DeclareQueueAndBindingAsync(channel, OrderCancelledQueue, OrderCancelledRoutingKey, cancellationToken);
 
         await DeclareQueueAndBindingAsync(channel, OrderPaidQueue, OrderPaidRoutingKey, cancellationToken);
+
+        await DeclareOrderCreatedRetryQueueAsync(channel, cancellationToken);
+
+        await DeclareQueueAndBindingAsync(channel, OrderCreatedDeadLetterQueue, OrderCreatedDeadLetterRoutingKey, cancellationToken);
     }
 
     private async Task DeclareExchangeAsync(IChannel channel, CancellationToken cancellationToken)
@@ -61,6 +71,29 @@ public sealed class RabbitMqTopologyInitializer
         await channel.QueueBindAsync(queue: queueName,
                                      exchange: _options.ExchangeName,
                                      routingKey: routingKey,
+                                     arguments: null,
+                                     cancellationToken: cancellationToken);
+    }
+
+    private async Task DeclareOrderCreatedRetryQueueAsync(IChannel channel, CancellationToken cancellationToken)
+    {
+        var arguments = new Dictionary<string, object?>
+        {
+            ["x-message-ttl"] = _options.RetryDelayMilliseconds,
+            ["x-dead-letter-exchange"] = _options.ExchangeName,
+            ["x-dead-letter-routing-key"] = OrderCreatedRoutingKey
+        };
+
+        await channel.QueueDeclareAsync(queue: OrderCreatedRetryQueue,
+                                        durable: true,
+                                        exclusive: false,
+                                        autoDelete: false,
+                                        arguments: arguments,
+                                        cancellationToken: cancellationToken);
+
+        await channel.QueueBindAsync(queue: OrderCreatedRetryQueue,
+                                     exchange: _options.ExchangeName,
+                                     routingKey: OrderCreatedRetryRoutingKey,
                                      arguments: null,
                                      cancellationToken: cancellationToken);
     }

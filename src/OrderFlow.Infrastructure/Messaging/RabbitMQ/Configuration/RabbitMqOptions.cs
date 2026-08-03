@@ -17,4 +17,8 @@ public sealed class RabbitMqOptions
     public string ExchangeName { get; init; } = "orderflow.events";
 
     public ushort PrefetchCount { get; init; } = 1;
+
+    public int RetryDelayMilliseconds { get; init; } = 10_000;
+
+    public int MaxRetryAttempts { get; init; } = 3;
 }
