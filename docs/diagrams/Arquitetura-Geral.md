@@ -93,20 +93,13 @@ RabbitMqEventPublisher --> RabbitMQ
 classDiagram
 
 class OrderFlowWorkerPayments
-
 class OrderCreatedConsumerHostedService
-
 class RabbitMqConsumerBase~TMessage~
-
 class OrderCreatedConsumer
 
-OrderFlowWorkerPayments
---> OrderCreatedConsumerHostedService
-
-OrderCreatedConsumerHostedService
---> OrderCreatedConsumer
-
-RabbitMqConsumerBase <|-- OrderCreatedConsumer
+OrderFlowWorkerPayments --> OrderCreatedConsumerHostedService
+OrderCreatedConsumerHostedService --> OrderCreatedConsumer
+RabbitMqConsumerBase~TMessage~ <|-- OrderCreatedConsumer
 ```
 
 ---
