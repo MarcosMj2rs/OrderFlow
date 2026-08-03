@@ -1,109 +1,54 @@
 # Arquitetura Geral
 
-Este diagrama representa a arquitetura atual do **OrderFlow**, destacando a organização das camadas **Domain**, **Application** e **Infrastructure**, bem como os principais componentes e seus relacionamentos.
+## Visão Geral
 
-A arquitetura segue os princípios de **Clean Architecture**, **Domain-Driven Design (DDD)** e **CQRS**, mantendo a separação de responsabilidades entre as camadas e o baixo acoplamento entre seus componentes.
+O **OrderFlow** é um laboratório de arquitetura distribuída desenvolvido em **.NET 10**, cujo objetivo é demonstrar a implementação prática de padrões utilizados em sistemas corporativos modernos.
+
+A solução foi construída seguindo os princípios de:
+
+- Clean Architecture
+- Domain-Driven Design (DDD)
+- CQRS
+- Domain Events
+- Repository Pattern
+- Unit of Work
+- RabbitMQ
+- Event-Driven Architecture
+- Worker Pattern
+- Retry
+- Dead Letter Queue (DLQ)
+
+A arquitetura mantém forte separação entre regras de negócio e infraestrutura, permitindo baixo acoplamento, alta coesão e facilidade de evolução.
+
+---
+
+# Visão Arquitetural
 
 ```mermaid
 classDiagram
 
-%% ==========================
 %% API
-%% ==========================
 
-class OrdersController {
-    +CreateAsync()
-    +GetAllAsync()
-    +GetByIdAsync()
-    +PayAsync()
-    +CancelAsync()
-}
-
-class ISender {
-    +Send()
-}
-
-class IMapper {
-    +Map()
-}
+class OrdersController
+class ISender
+class IMapper
 
 OrdersController --> ISender
 OrdersController --> IMapper
 
-%% ==========================
-%% APPLICATION - COMMANDS
-%% ==========================
+%% APPLICATION
 
 class CreateOrderCommand
-class PayOrderCommand
 class CancelOrderCommand
+class PayOrderCommand
 
 class CreateOrderCommandHandler
-class PayOrderCommandHandler
 class CancelOrderCommandHandler
-
-CreateOrderCommandHandler ..|> IRequestHandler
-PayOrderCommandHandler ..|> IRequestHandler
-CancelOrderCommandHandler ..|> IRequestHandler
-
-ISender --> CreateOrderCommand
-ISender --> PayOrderCommand
-ISender --> CancelOrderCommand
+class PayOrderCommandHandler
 
 CreateOrderCommand --> CreateOrderCommandHandler
-PayOrderCommand --> PayOrderCommandHandler
 CancelOrderCommand --> CancelOrderCommandHandler
-
-%% ==========================
-%% API
-%% ==========================
-
-class OrdersController {
-    +CreateAsync()
-    +GetAllAsync()
-    +GetByIdAsync()
-    +PayAsync()
-    +CancelAsync()
-}
-
-class ISender {
-    +Send()
-}
-
-class IMapper {
-    +Map()
-}
-
-OrdersController --> ISender
-OrdersController --> IMapper
-
-%% ==========================
-%% APPLICATION - COMMANDS
-%% ==========================
-
-class CreateOrderCommand
-class PayOrderCommand
-class CancelOrderCommand
-
-class CreateOrderCommandHandler
-class PayOrderCommandHandler
-class CancelOrderCommandHandler
-
-CreateOrderCommandHandler ..|> IRequestHandler
-PayOrderCommandHandler ..|> IRequestHandler
-CancelOrderCommandHandler ..|> IRequestHandler
-
-ISender --> CreateOrderCommand
-ISender --> PayOrderCommand
-ISender --> CancelOrderCommand
-
-CreateOrderCommand --> CreateOrderCommandHandler
 PayOrderCommand --> PayOrderCommandHandler
-CancelOrderCommand --> CancelOrderCommandHandler
-
-%% ==========================
-%% APPLICATION - QUERIES
-%% ==========================
 
 class GetOrderByIdQuery
 class GetOrdersQuery
@@ -111,200 +56,41 @@ class GetOrdersQuery
 class GetOrderByIdQueryHandler
 class GetOrdersQueryHandler
 
-GetOrderByIdQueryHandler ..|> IRequestHandler
-GetOrdersQueryHandler ..|> IRequestHandler
-
-ISender --> GetOrderByIdQuery
-ISender --> GetOrdersQuery
-
 GetOrderByIdQuery --> GetOrderByIdQueryHandler
 GetOrdersQuery --> GetOrdersQueryHandler
 
-%% ==========================
-%% APPLICATION - ABSTRACTIONS
-%% ==========================
-
-class IOrderRepository {
-    +GetByIdAsync()
-    +AddAsync()
-    +RemoveAsync()
-}
-
-class IOrderReadRepository {
-    +GetOrderByIdAsync()
-    +GetOrdersAsync()
-}
-
-class IUnitOfWork {
-    +SaveChangesAsync()
-}
-
-class IDomainEventCollector {
-    +Collect()
-}
-
-class IDomainEventDispatcher {
-    +DispatchAsync()
-}
-
-class IEventPublisher {
-    +PublishAsync()
-}
-
-CreateOrderCommandHandler --> IOrderRepository
-CreateOrderCommandHandler --> IUnitOfWork
-
-PayOrderCommandHandler --> IOrderRepository
-PayOrderCommandHandler --> IUnitOfWork
-
-CancelOrderCommandHandler --> IOrderRepository
-CancelOrderCommandHandler --> IUnitOfWork
-
-GetOrderByIdQueryHandler --> IOrderReadRepository
-GetOrdersQueryHandler --> IOrderReadRepository
-
-%% ==========================
 %% DOMAIN
-%% ==========================
 
-Entity <|-- Order
-Entity <|-- OrderItem
+class Order
+class OrderItem
 
-Order "1" *-- "*" OrderItem
+Order *-- OrderItem
 
-class Entity {
-    +Guid Id
-    +IReadOnlyCollection~IDomainEvent~ DomainEvents
-    #RaiseDomainEvent()
-    +ClearDomainEvents()
-}
-
-class Order {
-    +Guid CustomerId
-    +DateTime CreatedAt
-    +OrderStatus Status
-    +decimal TotalAmount
-    +IReadOnlyCollection~OrderItem~ Items
-    +AddItem()
-    +RemoveItem()
-    +ChangeItemQuantity()
-    +Cancel()
-    +Pay()
-}
-
-class OrderItem {
-    +Guid ProductId
-    +int Quantity
-    +decimal UnitPrice
-    +decimal Total
-}
-
-CreateOrderCommandHandler --> Order : cria
-PayOrderCommandHandler --> Order : executa Pay()
-CancelOrderCommandHandler --> Order : executa Cancel()
-
-%% ==========================
-%% DOMAIN EVENTS
-%% ==========================
-
-class IDomainEvent {
-    +Guid EventId
-    +DateTime OccurredAt
-}
-
-class DomainEvent {
-    +Guid EventId
-    +DateTime OccurredAt
-}
-
-class OrderCreatedDomainEvent {
-    +Guid OrderId
-    +Guid CustomerId
-    +decimal TotalAmount
-}
-
-class OrderCancelledDomainEvent {
-    +Guid OrderId
-    +Guid CustomerId
-    +decimal TotalAmount
-}
-
-class OrderPaidDomainEvent {
-    +Guid OrderId
-    +Guid CustomerId
-    +decimal TotalAmount
-}
-
-IDomainEvent <|.. DomainEvent
-
-DomainEvent <|-- OrderCreatedDomainEvent
-DomainEvent <|-- OrderCancelledDomainEvent
-DomainEvent <|-- OrderPaidDomainEvent
-
-Entity --> IDomainEvent
-Order --> OrderCreatedDomainEvent : registra
-Order --> OrderCancelledDomainEvent : registra
-Order --> OrderPaidDomainEvent : registra
-
-%% ==========================
-%% INFRASTRUCTURE - PERSISTENCE
-%% ==========================
-
-class OrderFlowDbContext
+%% INFRASTRUCTURE
 
 class OrderRepository
 class OrderReadRepository
 class UnitOfWork
-class EfCoreDomainEventCollector
-
-IOrderRepository <|.. OrderRepository
-IOrderReadRepository <|.. OrderReadRepository
-IUnitOfWork <|.. UnitOfWork
-IDomainEventCollector <|.. EfCoreDomainEventCollector
-
-OrderRepository --> OrderFlowDbContext
-OrderReadRepository --> OrderFlowDbContext
-UnitOfWork --> OrderFlowDbContext
-EfCoreDomainEventCollector --> OrderFlowDbContext
-
-OrderFlowDbContext --> Order
-UnitOfWork --> IDomainEventCollector
-UnitOfWork --> IDomainEventDispatcher
-
-%% ==========================
-%% INFRASTRUCTURE - RABBITMQ
-%% ==========================
-
 class DomainEventDispatcher
 class RabbitMqEventPublisher
-class RabbitMqRoutingKeyResolver
-class RabbitMqChannelFactory
-class RabbitMqConnection
-class RabbitMqTopologyInitializer
-class RabbitMqTopologyHostedService
+
+OrderRepository --> Order
+OrderReadRepository --> Order
+UnitOfWork --> OrderRepository
+
+DomainEventDispatcher --> RabbitMqEventPublisher
+
 class RabbitMQ
 
-IDomainEventDispatcher <|.. DomainEventDispatcher
-IEventPublisher <|.. RabbitMqEventPublisher
-
-DomainEventDispatcher --> IEventPublisher
-
-RabbitMqEventPublisher --> RabbitMqRoutingKeyResolver
-RabbitMqEventPublisher --> RabbitMqChannelFactory
-
-RabbitMqChannelFactory --> RabbitMqConnection
-
-RabbitMqTopologyHostedService --> RabbitMqTopologyInitializer
-RabbitMqTopologyInitializer --> RabbitMqChannelFactory
-
-RabbitMqEventPublisher --> RabbitMQ : publica eventos
-RabbitMqTopologyInitializer --> RabbitMQ : declara topologia
+RabbitMqEventPublisher --> RabbitMQ
 ```
+
+---
+
+# Arquitetura dos Workers
+
 ```mermaid
 classDiagram
-%% ==========================
-%% WORKER
-%% ==========================
 
 class OrderFlowWorkerPayments
 
@@ -314,36 +100,18 @@ class RabbitMqConsumerBase~TMessage~
 
 class OrderCreatedConsumer
 
-class OrderCreatedMessage
-
-OrderFlowWorkerPayments --> OrderCreatedConsumerHostedService
-
-OrderCreatedConsumerHostedService --> OrderCreatedConsumer
-
-RabbitMqConsumerBase <|-- OrderCreatedConsumer
-
-OrderCreatedConsumer --> OrderCreatedMessage
-
-OrderCreatedConsumer --> RabbitMQ : consome eventos
-
-OrderCreatedConsumer --> RabbitMqChannelFactory
-
-IDomainEventDispatcher --> OrderCreatedDomainEvent
-IDomainEventDispatcher --> OrderCancelledDomainEvent
-IDomainEventDispatcher --> OrderPaidDomainEvent
-
-OrderCreatedDomainEvent --> RabbitMqEventPublisher
-OrderCancelledDomainEvent --> RabbitMqEventPublisher
-OrderPaidDomainEvent --> RabbitMqEventPublisher
-
-class RabbitMqConsumerBase~TMessage~
-
-RabbitMqConsumerBase <|-- OrderCreatedConsumer
+OrderFlowWorkerPayments
+--> OrderCreatedConsumerHostedService
 
 OrderCreatedConsumerHostedService
+--> OrderCreatedConsumer
+
+RabbitMqConsumerBase <|-- OrderCreatedConsumer
 ```
 
-## Fluxo de criação
+---
+
+# Fluxo de Escrita (CQRS)
 
 ```mermaid
 flowchart LR
@@ -351,73 +119,44 @@ flowchart LR
 A[HTTP POST]
 --> B[OrdersController]
 --> C[CreateOrderCommand]
---> D[Command Handler]
---> E[Order]
---> F[UnitOfWork]
---> G[DomainEventDispatcher]
---> H[RabbitMqEventPublisher]
---> I[RabbitMQ Exchange]
---> J[Queue]
+--> D[MediatR]
+--> E[Command Handler]
+--> F[Order]
+--> G[UnitOfWork]
+--> H[DomainEventDispatcher]
+--> I[RabbitMqEventPublisher]
+--> J[RabbitMQ Exchange]
 ```
 
-## Fluxo de criação
+---
+
+# Fluxo de Leitura (CQRS)
 
 ```mermaid
 flowchart LR
 
-A[HTTP POST]
+A[HTTP GET]
 --> B[OrdersController]
---> C[CreateOrderCommand]
---> D[Command Handler]
---> E[Order]
---> F[UnitOfWork]
---> G[DomainEventDispatcher]
---> H[RabbitMqEventPublisher]
---> I[RabbitMQ Exchange]
---> J[Queue]
+--> C[Query]
+--> D[MediatR]
+--> E[Query Handler]
+--> F[IOrderReadRepository]
+--> G[OrderReadRepository]
+--> H[SQL Server]
+--> I[AutoMapper]
+--> J[HTTP 200]
 ```
 
+---
+
+# Fluxo de Processamento Assíncrono
+
 ```mermaid
-flowchart LR
-A[RabbitMQ Queue]
---> B[OrderCreatedConsumerHostedService]
---> C[OrderCreatedConsumer]
---> D[ProcessMessageAsync]
-
-classDiagram
-
-class MessagingException
-
-class TransientMessagingException
-
-class PermanentMessagingException
-
-Exception <|-- MessagingException
-
-MessagingException <|-- TransientMessagingException
-
-MessagingException <|-- PermanentMessagingException
-
-RabbitMqConsumerBase~TMessage~ --> MessagingException
-
-OrderCreatedConsumer --> RabbitMqConsumerBase~TMessage~
-
-
-flowchart LR
-
-A[RabbitMQ Queue]
---> B[OrderCreatedConsumerHostedService]
---> C[OrderCreatedConsumer]
---> D[ProcessMessageAsync]
-
 flowchart TD
 
 A[RabbitMQ Queue]
-
 --> B[OrderCreatedConsumerHostedService]
-
 --> C[RabbitMqConsumerBase]
-
 --> D[ProcessMessageAsync]
 
 D --> E{Resultado}
@@ -433,46 +172,119 @@ H --> I[Main Queue]
 I --> C
 
 E -->|PermanentMessagingException| J[Dead Letter Queue]
+```
 
+---
+
+# Topologia RabbitMQ
+
+```mermaid
 flowchart LR
 
 A[orderflow.events]
 
---> B[order.created]
-
+A --> B[order.created]
 B --> C[orderflow.order-created]
 
 A --> D[order.created.retry]
-
 D --> E[orderflow.order-created.retry]
 
 A --> F[order.created.dlq]
-
 F --> G[orderflow.order-created.dlq]
 
-E -->|TTL| A
+E -->|TTL expirado| A
+```
 
+---
+
+# Hierarquia das Exceções
+
+```mermaid
+classDiagram
+
+Exception <|-- MessagingException
+
+MessagingException <|-- TransientMessagingException
+
+MessagingException <|-- PermanentMessagingException
+```
+
+---
+
+# Fluxo de Retry
+
+```mermaid
 flowchart LR
 
 A[TransientMessagingException]
-
 --> B[Retry Queue]
-
 --> C[TTL]
-
 --> D[Main Queue]
-
 --> E[Consumer]
-
 --> F[ACK]
 ```
 
-Responsabilidades das camadas
-Camada	Responsabilidade
+---
 
-Api	Receber requisições HTTP, mapear contratos, enviar Commands e Queries e produzir respostas HTTP.
-Application	Orquestrar casos de uso, validar entradas e depender apenas de abstrações.
-Domain	Concentrar entidades, invariantes, transições de estado e Domain Events.
-Infrastructure	Implementar persistência, Unit of Work, SQL Server, RabbitMQ, Publishers, Consumers, Retry, Dead Letter Queue, Workers e integração com sistemas externos.
+# Fluxo de Dead Letter Queue
 
-A infraestrutura de mensageria centraliza toda a política de tratamento de mensagens no RabbitMqConsumerBase<TMessage>. Os Consumers concretos permanecem responsáveis apenas pela lógica de negócio, enquanto Retry, Dead Letter Queue, ACK, republicação e classificação de falhas são abstraídos pela infraestrutura.
+```mermaid
+flowchart LR
+
+A[PermanentMessagingException]
+--> B[Dead Letter Queue]
+```
+
+---
+
+# Responsabilidades das Camadas
+
+| Camada | Responsabilidade |
+|---------|------------------|
+| **Api** | Receber requisições HTTP, mapear contratos, enviar Commands e Queries e produzir respostas HTTP. |
+| **Application** | Orquestrar casos de uso, validar entradas e depender apenas de abstrações. |
+| **Domain** | Concentrar entidades, regras de negócio, invariantes, transições de estado e Domain Events. |
+| **Infrastructure** | Implementar persistência, SQL Server, Unit of Work, RabbitMQ, Retry, Dead Letter Queue, Workers e integrações externas. |
+
+---
+
+# Princípios Arquiteturais
+
+A arquitetura do OrderFlow foi construída utilizando os seguintes padrões:
+
+- Clean Architecture
+- Domain-Driven Design (DDD)
+- CQRS
+- Domain Events
+- Repository Pattern
+- Unit of Work
+- Dependency Injection
+- RabbitMQ
+- Event-Driven Architecture
+- Worker Pattern
+- Retry
+- Dead Letter Queue (DLQ)
+
+---
+
+# Observações Arquiteturais
+
+A camada **Domain** permanece completamente independente de frameworks, banco de dados, HTTP ou RabbitMQ.
+
+A camada **Application** depende apenas de abstrações, preservando o desacoplamento entre regras de negócio e infraestrutura.
+
+Toda a infraestrutura de mensageria está centralizada na camada **Infrastructure**.
+
+O `RabbitMqConsumerBase<TMessage>` concentra toda a política de processamento de mensagens, incluindo:
+
+- desserialização;
+- ACK;
+- Retry;
+- Dead Letter Queue;
+- republicação;
+- controle do header `x-orderflow-retry-count`;
+- classificação entre falhas transitórias e permanentes.
+
+Os Consumers concretos permanecem responsáveis exclusivamente pela lógica de negócio, desconhecendo detalhes de infraestrutura como ACK, Retry, DLQ e republicação de mensagens.
+
+> **Próxima evolução arquitetural:** implementação do **Transactional Outbox Pattern**, eliminando a possibilidade de perda de eventos entre a persistência no banco de dados e a publicação no RabbitMQ.
