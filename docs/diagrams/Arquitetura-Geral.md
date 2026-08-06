@@ -17,8 +17,42 @@ A solução foi construída seguindo os princípios de:
 - Worker Pattern
 - Retry
 - Dead Letter Queue (DLQ)
+- Transactional Outbox
 
 A arquitetura mantém forte separação entre regras de negócio e infraestrutura, permitindo baixo acoplamento, alta coesão e facilidade de evolução.
+
+                    ┌──────────────────────┐
+                    │   OrderFlow.Api      │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │      SQL Server      │
+                    │                      │
+                    │  Orders             │
+                    │  OrderItems         │
+                    │  OutboxMessages     │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+               ┌────────────────────────────┐
+               │ OrderFlow.Worker.Outbox    │
+               └──────────┬─────────────────┘
+                          │
+                          ▼
+                  RabbitMQ Topic Exchange
+                          │
+                          ▼
+               orderflow.order-created
+                          │
+                          ▼
+               ┌───────────────────────────┐
+               │ OrderFlow.Worker.Payments │
+               └──────────┬────────────────┘
+                          │
+                          ▼
+                     OrderCreatedConsumer
+
 
 ---
 
@@ -63,22 +97,35 @@ GetOrdersQuery --> GetOrdersQueryHandler
 
 class Order
 class OrderItem
+class OrderCreatedDomainEvent
 
 Order *-- OrderItem
+Order --> OrderCreatedDomainEvent
 
 %% INFRASTRUCTURE
 
 class OrderRepository
 class OrderReadRepository
 class UnitOfWork
-class DomainEventDispatcher
+class OutboxMessage
+class OutboxMessageFactory
+class OutboxRepository
+class OutboxEventTypeRegistry
+class OutboxPublisherService
 class RabbitMqEventPublisher
 
 OrderRepository --> Order
 OrderReadRepository --> Order
-UnitOfWork --> OrderRepository
 
-DomainEventDispatcher --> RabbitMqEventPublisher
+UnitOfWork --> OrderRepository
+UnitOfWork --> OutboxMessageFactory
+
+OutboxMessageFactory --> OutboxMessage
+OutboxMessageFactory --> OrderCreatedDomainEvent
+
+OutboxPublisherService --> OutboxRepository
+OutboxPublisherService --> OutboxEventTypeRegistry
+OutboxPublisherService --> RabbitMqEventPublisher
 
 class RabbitMQ
 
@@ -91,6 +138,17 @@ RabbitMqEventPublisher --> RabbitMQ
 
 ```mermaid
 classDiagram
+
+%% WORKER OUTBOX
+
+class OrderFlowWorkerOutbox
+class OutboxPublisherHostedService
+class OutboxPublisherService
+
+OrderFlowWorkerOutbox --> OutboxPublisherHostedService
+OutboxPublisherHostedService --> OutboxPublisherService
+
+%% WORKER PAYMENTS
 
 class OrderFlowWorkerPayments
 class OrderCreatedConsumerHostedService
@@ -113,14 +171,39 @@ A[HTTP POST]
 --> B[OrdersController]
 --> C[CreateOrderCommand]
 --> D[MediatR]
---> E[Command Handler]
+--> E[CreateOrderCommandHandler]
 --> F[Order]
---> G[UnitOfWork]
---> H[DomainEventDispatcher]
---> I[RabbitMqEventPublisher]
---> J[RabbitMQ Exchange]
+--> G[OrderCreatedDomainEvent]
+--> H[OutboxMessageFactory]
+--> I[OutboxMessage]
+--> J[UnitOfWork]
+--> K[SQL Server]
+
+K --> L[Orders]
+K --> M[OrderItems]
+K --> N[OutboxMessages]
 ```
 
+---
+
+# Fluxo Transactional Outbox
+
+```mermaid
+flowchart LR
+
+A[SQL Server]
+--> B[OutboxMessages]
+--> C[OrderFlow.Worker.Outbox]
+--> D[OutboxPublisherHostedService]
+--> E[OutboxPublisherService]
+--> F[OutboxEventTypeRegistry]
+--> G[RabbitMqEventPublisher]
+--> H[RabbitMQ Exchange]
+--> I[orderflow.order-created]
+--> J[OrderFlow.Worker.Payments]
+--> K[OrderCreatedConsumer]
+--> L[ACK]
+```
 ---
 
 # Fluxo de Leitura (CQRS)
@@ -230,20 +313,56 @@ A[PermanentMessagingException]
 
 ---
 
+# Fluxo de Persistência Transacional
+
+```mermaid
+flowchart TD
+
+A[CreateOrderCommandHandler]
+--> B[Order Aggregate]
+
+B --> C[OrderCreatedDomainEvent]
+
+C --> D[OutboxMessageFactory]
+
+D --> E[OutboxMessage]
+
+B --> F[UnitOfWork]
+E --> F
+
+F --> G[OrderFlowDbContext]
+
+G --> H[SaveChangesAsync]
+
+H --> I[SQL Server Transaction]
+
+I --> J[Orders]
+I --> K[OrderItems]
+I --> L[OutboxMessages]
+
+J --> M[Commit]
+K --> M
+L --> M
+```
+---
+
+
 # Responsabilidades das Camadas
 
-| Camada | Responsabilidade |
-|---------|------------------|
+| Camada / Processo | Responsabilidade |
+|---|---|
 | **Api** | Receber requisições HTTP, mapear contratos, enviar Commands e Queries e produzir respostas HTTP. |
 | **Application** | Orquestrar casos de uso, validar entradas e depender apenas de abstrações. |
 | **Domain** | Concentrar entidades, regras de negócio, invariantes, transições de estado e Domain Events. |
-| **Infrastructure** | Implementar persistência, SQL Server, Unit of Work, RabbitMQ, Retry, Dead Letter Queue, Workers e integrações externas. |
+| **Infrastructure** | Implementar persistência, SQL Server, Unit of Work, Transactional Outbox, RabbitMQ, Retry, Dead Letter Queue e integrações externas. |
+| **OrderFlow.Worker.Outbox** | Consultar mensagens não processadas na tabela `OutboxMessages`, desserializar os eventos, publicá-los no RabbitMQ e preencher `ProcessedOnUtc` após o sucesso. |
+| **OrderFlow.Worker.Payments** | Consumir eventos do RabbitMQ, executar o processamento específico da mensagem e confirmar a entrega por meio de ACK. |
 
 ---
 
 # Princípios Arquiteturais
 
-A arquitetura do OrderFlow foi construída utilizando os seguintes padrões:
+A arquitetura do OrderFlow foi construída utilizando os seguintes princípios e padrões:
 
 - Clean Architecture
 - Domain-Driven Design (DDD)
@@ -257,6 +376,9 @@ A arquitetura do OrderFlow foi construída utilizando os seguintes padrões:
 - Worker Pattern
 - Retry
 - Dead Letter Queue (DLQ)
+- Transactional Outbox
+- At Least Once Delivery
+- Consistência Eventual
 
 ---
 
@@ -266,7 +388,7 @@ A camada **Domain** permanece completamente independente de frameworks, banco de
 
 A camada **Application** depende apenas de abstrações, preservando o desacoplamento entre regras de negócio e infraestrutura.
 
-Toda a infraestrutura de mensageria está centralizada na camada **Infrastructure**.
+Toda a infraestrutura de persistência e mensageria permanece centralizada na camada **Infrastructure**.
 
 O `RabbitMqConsumerBase<TMessage>` concentra toda a política de processamento de mensagens, incluindo:
 
@@ -280,4 +402,26 @@ O `RabbitMqConsumerBase<TMessage>` concentra toda a política de processamento d
 
 Os Consumers concretos permanecem responsáveis exclusivamente pela lógica de negócio, desconhecendo detalhes de infraestrutura como ACK, Retry, DLQ e republicação de mensagens.
 
-> **Próxima evolução arquitetural:** implementação do **Transactional Outbox Pattern**, eliminando a possibilidade de perda de eventos entre a persistência no banco de dados e a publicação no RabbitMQ.
+## Transactional Outbox
+
+O **Transactional Outbox Pattern** foi implementado para garantir consistência entre a persistência do banco de dados e a publicação de eventos no RabbitMQ.
+
+Os Domain Events são convertidos em registros da tabela `OutboxMessages` durante a mesma transação utilizada para persistir o Aggregate Root.
+
+Após a confirmação da transação, o `OrderFlow.Worker.Outbox` consulta periodicamente as mensagens ainda não processadas, desserializa os eventos, publica-os no RabbitMQ e atualiza o campo `ProcessedOnUtc`.
+
+Essa abordagem elimina a janela de inconsistência existente entre o banco de dados e o broker de mensagens, garantindo o padrão **Transactional Outbox** e o modelo de entrega **At Least Once**.
+
+## Cenários Validados
+
+Durante a implementação foram executados e validados os seguintes cenários:
+
+- publicação normal de eventos;
+- RabbitMQ indisponível durante a criação do pedido;
+- recuperação automática após o retorno do RabbitMQ;
+- Worker.Outbox indisponível durante a criação do pedido;
+- recuperação automática após a inicialização do Worker.Outbox;
+- preservação de `EventId`, `OccurredAt` e `Payload` durante a serialização e desserialização;
+- processamento completo até o ACK do Consumer.
+
+Esses testes confirmam a resiliência da arquitetura e a correta implementação do **Transactional Outbox Pattern**.

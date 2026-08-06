@@ -161,6 +161,72 @@ Foi implementada a primeira versão da API REST.
 
 ------------------------------------------------------------------------
 
+# Capítulo 8 – Transactional Outbox Pattern
+
+## Objetivo
+
+Eliminar a inconsistência entre a persistência do banco de dados e a publicação de eventos no RabbitMQ, garantindo que todo evento de domínio seja persistido de forma transacional antes de sua publicação.
+
+## Componentes adicionados
+
+- OutboxMessage
+- OutboxMessageConfiguration
+- IOutboxMessageFactory
+- OutboxMessageFactory
+- IOutboxRepository
+- OutboxRepository
+- IOutboxEventTypeRegistry
+- OutboxEventTypeRegistry
+- OutboxPublisherService
+- OutboxPublisherHostedService
+- OrderFlow.Worker.Outbox
+
+## Fluxo
+
+HTTP Request
+    ↓
+Command Handler
+    ↓
+Aggregate Root
+    ↓
+Domain Event
+    ↓
+OutboxMessage
+    ↓
+SaveChanges()
+    ↓
+SQL Server
+    ├── Orders
+    └── OutboxMessages
+            ↓
+OrderFlow.Worker.Outbox
+            ↓
+RabbitMQ
+            ↓
+Worker.Payments
+            ↓
+Consumer
+            ↓
+ACK
+
+## Benefícios
+
+- Persistência transacional entre Orders e OutboxMessages.
+- Eliminação da janela de inconsistência entre banco e broker.
+- Publicação assíncrona dos eventos.
+- Recuperação automática após indisponibilidade do RabbitMQ.
+- Recuperação automática após indisponibilidade do Worker.Outbox.
+- Suporte ao modelo At Least Once Delivery.
+
+## Cenários validados
+
+- Publicação normal.
+- RabbitMQ indisponível.
+- Worker.Outbox indisponível.
+- Recuperação automática após retorno da infraestrutura.
+- Desserialização preservando EventId, OccurredAt e Payload.
+- Publicação e consumo validados de ponta a ponta.
+
 # Próxima etapa --- Processamento Assíncrono
 
 # Capítulo 6 — RabbitMQ

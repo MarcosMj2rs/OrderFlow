@@ -14,8 +14,9 @@ Mais do que um CRUD, o OrderFlow busca demonstrar **como construir software esca
 
 O projeto evolui de forma incremental. Cada capítulo introduz novos conceitos arquiteturais, mantendo o código, a documentação e o histórico de commits sincronizados durante toda a evolução da solução.
 
-Atualmente o projeto já possui as camadas **Domain**, **Application** e **Infrastructure** implementadas, incluindo persistência com Entity Framework Core, integração com SQL Server e versionamento do banco através de Migrations. As próximas etapas concentrarão esforços na exposição da aplicação via WebApi e, posteriormente, na implementação da arquitetura orientada a eventos utilizando RabbitMQ.
+Atualmente o projeto já possui uma arquitetura distribuída funcional baseada em **RabbitMQ**, incluindo **Retry**, **Dead Letter Queue (DLQ)**, **Background Workers** e **Transactional Outbox**.
 
+Os próximos capítulos concentrarão esforços na implementação do **Inbox Pattern**, **Idempotência**, **Saga**, **Observabilidade** e demais padrões utilizados em sistemas distribuídos corporativos.
 ---
 
 # 🎯 Objetivos
@@ -27,7 +28,8 @@ Atualmente o projeto já possui as camadas **Domain**, **Application** e **Infra
 - Implementar persistência utilizando Entity Framework Core.
 - Aplicar Repository e Unit of Work.
 - Integrar serviços utilizando RabbitMQ.
-- Implementar Outbox Pattern.
+- Implementar Transactional Outbox Pattern.
+- Garantir At Least Once Delivery.
 - Implementar Inbox Pattern.
 - Garantir Idempotência.
 - Demonstrar estratégias de Retry.
@@ -101,16 +103,28 @@ Infrastructure
     │
     ├── EF Core
     ├── SQL Server
-    ├── RabbitMQ Publisher
-    ├── Repository
-    └── UnitOfWork
+    ├── UnitOfWork
+    ├── Transactional Outbox
+    ├── RabbitMQ
+    └── Persistence
 
         │
         ▼
 
 SQL Server
-
+    │
+    ├── Orders
+    ├── OrderItems
+    └── OutboxMessages
+            │
+            ▼
+OrderFlow.Worker.Outbox
+            │
+            ▼
 RabbitMQ
+            │
+            ▼
+OrderFlow.Worker.Payments
 ```
 
 Cada camada possui responsabilidades bem definidas.
@@ -130,23 +144,27 @@ Cada camada possui responsabilidades bem definidas.
 OrderFlow
 │
 ├── src
+│   ├── OrderFlow.Api
 │   ├── OrderFlow.Domain
 │   ├── OrderFlow.Application
 │   ├── OrderFlow.Infrastructure
-│   └── OrderFlow.WebApi
+│   ├── OrderFlow.Worker.Outbox
+│   ├── OrderFlow.Worker.Payments
+│   └── OrderFlow.Worker.Inbox
 │
 ├── tests
 │   ├── OrderFlow.Domain.Tests
-│   └── OrderFlow.Application.Tests
+│   ├── OrderFlow.Application.Tests
+│   └── OrderFlow.Integration.Tests
 │
 └── docs
     ├── adr
     ├── concepts
     ├── decisions
     ├── diagrams
+    ├── images
     └── Glossario.md
 ```
-
 ---
 
 # 📚 Documentação
@@ -175,9 +193,9 @@ O desenvolvimento do OrderFlow foi dividido em capítulos, permitindo acompanhar
 | Capítulo 4 — Application (CQRS) | ✅ |
 | Capítulo 5 — Infrastructure | ✅ |
 | Capítulo 6 — RabbitMQ | ✅ |
-| Capítulo 7 — Background Workers | ⏳ |
-| Capítulo 8 — WebApi | ⏳ |
-| Capítulo 9 — Outbox Pattern | ⏳ |
+| Capítulo 7 — Background Workers | ✅ |
+| Capítulo 8 — WebApi | ✅ |
+| Capítulo 9 — Transactional Outbox | ✅ |
 | Capítulo 10 — Inbox Pattern | ⏳ |
 | Capítulo 11 — Idempotência | ⏳ |
 | Capítulo 12 — Saga | ⏳ |
@@ -263,7 +281,13 @@ O desenvolvimento do OrderFlow foi dividido em capítulos, permitindo acompanhar
 | User Secrets | ✅ |
 | Migrations | ✅ |
 | RabbitMQ | ✅ |
-| Outbox Pattern | ⏳ |
+| RabbitMQ Topology | ✅ |
+| Publisher | ✅ |
+| Consumer | ✅ |
+| Background Workers | ✅ |
+| Retry | ✅ |
+| Dead Letter Queue (DLQ) | ✅ |
+| Transactional Outbox | ✅ |
 | Inbox Pattern | ⏳ |
 | Idempotência | ⏳ |
 
@@ -273,8 +297,13 @@ O desenvolvimento do OrderFlow foi dividido em capítulos, permitindo acompanhar
 
 | Item | Status |
 |------|:------:|
-| Retry | ⏳ |
-| Dead Letter Queue | ⏳ |
+| Event-Driven Architecture | ✅ |
+| Transactional Outbox | ✅ |
+| At Least Once Delivery | ✅ |
+| Retry | ✅ |
+| Dead Letter Queue (DLQ) | ✅ |
+| Inbox Pattern | ⏳ |
+| Idempotência | ⏳ |
 | Saga | ⏳ |
 | Consistência Eventual | ⏳ |
 | Versionamento de Eventos | ⏳ |
@@ -305,7 +334,7 @@ O desenvolvimento do OrderFlow foi dividido em capítulos, permitindo acompanhar
 
 # 🛣️ Roadmap
 
-## Capítulo 5 — Infrastructure
+## ✅ Capítulo 5 — Infrastructure
 
 - Entity Framework Core
 - DbContext
@@ -317,6 +346,78 @@ O desenvolvimento do OrderFlow foi dividido em capítulos, permitindo acompanhar
 - SQL Server
 - User Secrets
 - Migrations
+
+## ✅ Capítulo 6 — RabbitMQ
+
+- Fundamentos de mensageria
+- Connection
+- Channel
+- Exchange
+- Queue
+- Binding
+- Routing Key
+- Publisher
+- Publisher Confirm
+
+## ✅ Capítulo 7 — Background Workers
+
+- Consumer
+- Ack
+- Nack
+- Reject
+- Prefetch
+- Retry
+- Dead Letter Queue
+
+## ✅ Capítulo 8 — WebApi
+
+- Controllers
+- Middlewares
+- Swagger
+- Tratamento global de exceções
+
+## ✅ Capítulo 9 — Transactional Outbox
+
+- OutboxMessage
+- OutboxMessageFactory
+- OutboxRepository
+- OutboxEventTypeRegistry
+- OutboxPublisherService
+- OrderFlow.Worker.Outbox
+- Persistência transacional
+- Publicação assíncrona
+- Recuperação automática
+- Validação dos cenários de resiliência
+
+## ⏳ Capítulo 10 — Inbox Pattern
+
+- InboxMessage
+- InboxRepository
+- InboxProcessor
+- Controle de mensagens processadas
+- Idempotência no consumo
+
+## ⏳ Capítulo 11 — Idempotência
+
+- Idempotência da API
+- Idempotência dos Consumers
+- Chaves de idempotência
+- Estratégias de deduplicação
+
+## ⏳ Capítulo 12 — Saga
+
+- Saga Orquestrada
+- Saga Coreografada
+- Compensações
+- Consistência Eventual
+- Versionamento de Eventos
+
+## ⏳ Capítulo 13 — Observabilidade
+
+- Logs estruturados
+- Métricas
+- OpenTelemetry
+- Distributed Tracing
 
 ## Capítulo 6 — RabbitMQ
 

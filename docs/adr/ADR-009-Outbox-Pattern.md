@@ -2,6 +2,8 @@
 
 **Status:** Aceita
 
+> **Implementação concluída e validada.**
+
 ## Registro de Decisões
 
 | ID | Decisão |
@@ -15,6 +17,9 @@
 | D07 | O Outbox será integrado ao Unit of Work da aplicação. |
 | D08 | O Worker.Outbox será responsável exclusivamente pela publicação dos eventos pendentes. |
 | D09 | A estratégia deverá ser compatível com Retry, Dead Letter Queue e futura implementação do Inbox Pattern. |
+| D10 | Os tipos de Domain Events serão resolvidos por meio de um OutboxEventTypeRegistry, eliminando switch para desserialização. |
+| D11 | Os Domain Events serão registrados somente após a montagem completa do Aggregate Root, garantindo que representem o estado final da entidade. |
+
 
 ## Escopo desta ADR
 
@@ -22,11 +27,15 @@ Esta ADR define a estratégia utilizada para garantir a publicação confiável 
 
 Estão contemplados:
 
+Estão contemplados:
+
 - persistência transacional dos eventos;
 - armazenamento em Outbox;
 - publicação assíncrona;
 - responsabilidades do Worker.Outbox;
-- integração com RabbitMQ.
+- integração com RabbitMQ;
+- desserialização dos Domain Events;
+- recuperação automática após indisponibilidade da infraestrutura.
 
 Não fazem parte desta ADR:
 
@@ -194,6 +203,12 @@ Todo Domain Event será persistido na tabela **OutboxMessages** durante a mesma 
 
 Após o commit, um Worker dedicado consultará os eventos pendentes e realizará sua publicação no RabbitMQ.
 
+A publicação dos eventos passou a ser realizada exclusivamente pelo `OrderFlow.Worker.Outbox`, eliminando a publicação direta da API para o RabbitMQ.
+
+Os Domain Events são convertidos em registros da tabela `OutboxMessages` por meio do `OutboxMessageFactory`, preservando seu conteúdo até a publicação.
+
+A resolução do tipo concreto do evento é realizada pelo `OutboxEventTypeRegistry`, permitindo a desserialização sem dependência de estruturas condicionais.
+
 ---
 
 # Fluxo Arquitetural
@@ -202,24 +217,32 @@ Após o commit, um Worker dedicado consultará os eventos pendentes e realizará
 flowchart LR
 
 A[Command Handler]
-
 --> B[Aggregate Root]
+--> C[OrderCreatedDomainEvent]
+--> D[OutboxMessageFactory]
+--> E[OutboxMessage]
+--> F[UnitOfWork]
+--> G[SQL Server]
 
---> C[Domain Events]
+G --> H[Orders]
+G --> I[OrderItems]
+G --> J[OutboxMessages]
 
---> D[UnitOfWork]
+J --> K[OrderFlow.Worker.Outbox]
 
---> E[SQL Server]
+K --> L[OutboxPublisherService]
 
-E --> F[Orders]
+L --> M[OutboxEventTypeRegistry]
 
-E --> G[OutboxMessages]
+M --> N[RabbitMqEventPublisher]
 
-G --> H[Worker.Outbox]
+N --> O[RabbitMQ]
 
-H --> I[RabbitMqEventPublisher]
+O --> P[OrderFlow.Worker.Payments]
 
-I --> J[RabbitMQ]
+P --> Q[OrderCreatedConsumer]
+
+Q --> R[ACK]
 ```
 
 ---
@@ -228,22 +251,27 @@ I --> J[RabbitMQ]
 
 ## Domain
 
-Gerar Domain Events.
+- Implementar as regras de negócio e invariantes do Aggregate Root.
+- Gerar Domain Events representando fatos ocorridos no domínio.
+- Permanecer completamente independente de infraestrutura.
 
 ---
 
 ## Application
 
-Executar casos de uso.
+- Orquestrar os casos de uso.
+- Persistir o Aggregate Root por meio do UnitOfWork.
+- Permanecer desacoplada dos detalhes de mensageria.
 
 ---
 
 ## UnitOfWork
 
-Persistir:
+Responsável por:
 
-- entidades;
-- eventos da Outbox.
+- persistir o Aggregate Root;
+- converter Domain Events em registros da Outbox por meio do `OutboxMessageFactory`;
+- garantir que Aggregate Root e `OutboxMessages` sejam persistidos na mesma transação.
 
 ---
 
@@ -251,32 +279,41 @@ Persistir:
 
 Responsável por:
 
-- localizar eventos pendentes;
-- publicar no RabbitMQ;
-- marcar como processados.
+- localizar mensagens não processadas na tabela `OutboxMessages`;
+- resolver o tipo concreto do Domain Event por meio do `OutboxEventTypeRegistry`;
+- desserializar o evento;
+- publicar o evento no RabbitMQ;
+- atualizar `ProcessedOnUtc` após publicação bem-sucedida;
+- registrar falhas de publicação para nova tentativa.
 
 ---
 
 ## RabbitMQ
 
-Distribuir os eventos para os consumidores.
+Responsável por distribuir os eventos para os consumidores, desacoplando a publicação da execução dos processos consumidores.
 
 ---
 
 # Consequências Positivas
 
-- elimina perda de eventos;
-- publicação resiliente;
-- recuperação automática;
-- desacoplamento entre persistência e mensageria.
+- elimina o Dual Write Problem;
+- garante persistência transacional entre Aggregate Root e Outbox;
+- publicação resiliente e assíncrona dos eventos;
+- recuperação automática após indisponibilidade do RabbitMQ;
+- recuperação automática após indisponibilidade do Worker.Outbox;
+- desacoplamento entre persistência e mensageria;
+- preservação do histórico de publicação por meio da tabela `OutboxMessages`;
+- compatibilidade com o modelo **At Least Once Delivery**.
 
 ---
 
 # Consequências Negativas
 
-- necessidade de Worker adicional;
-- tabela extra;
-- estratégia de limpeza futura.
+- necessidade de um Worker dedicado para publicação;
+- criação e manutenção da tabela `OutboxMessages`;
+- aumento da complexidade da infraestrutura;
+- necessidade futura de política de limpeza da Outbox;
+- consistência eventual entre banco de dados e consumidores.
 
 ---
 
@@ -284,9 +321,11 @@ Distribuir os eventos para os consumidores.
 
 | Decisão | Benefício | Custo |
 |---|---|---|
-| Outbox | Confiabilidade | Mais infraestrutura |
-| Worker dedicado | Desacoplamento | Mais processamento |
-| Persistência dos eventos | Recuperação | Mais armazenamento |
+| Transactional Outbox | Elimina perda de eventos | Maior complexidade |
+| Worker.Outbox | Desacoplamento da publicação | Processo adicional |
+| Persistência da Outbox | Recuperação automática | Maior utilização do banco |
+| Publicação assíncrona | Resiliência | Consistência eventual |
+| OutboxEventTypeRegistry | Extensibilidade e eliminação de `switch` | Registro explícito de novos eventos |
 
 ---
 
@@ -306,7 +345,7 @@ Integração com UnitOfWork.
 
 ## Infrastructure
 
-Implementação da tabela Outbox, Worker e publicação.
+Implementação da persistência, Transactional Outbox, Worker.Outbox, RabbitMQ e mecanismos de publicação assíncrona.
 
 ---
 
@@ -318,13 +357,17 @@ Novo componente responsável pela publicação dos eventos.
 
 # Critérios de Validação
 
-A implementação será considerada concluída quando:
+A implementação foi considerada concluída após a validação dos seguintes cenários:
 
-- pedidos e eventos forem persistidos na mesma transação;
-- eventos permanecerem na Outbox caso o RabbitMQ esteja indisponível;
-- Worker.Outbox publicar eventos pendentes;
-- eventos publicados forem marcados como processados;
-- nenhuma mensagem seja perdida após reinicialização da aplicação.
+- Aggregate Root e `OutboxMessages` persistidos na mesma transação;
+- publicação assíncrona realizada exclusivamente pelo `OrderFlow.Worker.Outbox`;
+- mensagens permanecem pendentes quando o RabbitMQ está indisponível;
+- publicação automática após o retorno do RabbitMQ;
+- mensagens permanecem pendentes quando o Worker.Outbox está indisponível;
+- publicação automática após a inicialização do Worker.Outbox;
+- preservação de `EventId`, `OccurredAt` e Payload durante serialização e desserialização;
+- atualização de `ProcessedOnUtc` após publicação bem-sucedida;
+- processamento completo até o ACK do Consumer.
 
 ---
 
@@ -342,3 +385,4 @@ A implementação será considerada concluída quando:
 | Data | Alteração |
 |---|---|
 | 04/08/2026 | Criação da ADR-009 definindo a estratégia de Transactional Outbox do OrderFlow. |
+| 06/08/2026 | Implementação concluída, documentação atualizada e cenários de resiliência validados. |
