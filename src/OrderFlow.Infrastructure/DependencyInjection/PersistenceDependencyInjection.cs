@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -7,8 +6,10 @@ using OrderFlow.Application.Abstractions.Persistence;
 using OrderFlow.Domain.Repositories;
 using OrderFlow.Infrastructure.Persistence.Context;
 using OrderFlow.Infrastructure.Persistence.DomainEvents;
+using OrderFlow.Infrastructure.Persistence.Outbox;
 using OrderFlow.Infrastructure.Persistence.Repositories;
 using OrderFlow.Infrastructure.Persistence.UnitOfWork;
+using System.Diagnostics;
 
 namespace OrderFlow.Infrastructure.DependencyInjection;
 
@@ -39,7 +40,10 @@ public static class PersistenceDependencyInjection
 
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<IOrderReadRepository, OrderReadRepository>();
+        services.AddScoped<IOutboxRepository, OutboxRepository>();
         services.AddScoped<IDomainEventCollector, EfCoreDomainEventCollector>();
+        services.AddScoped<IOutboxMessageFactory, OutboxMessageFactory>();
+        services.AddSingleton<IOutboxEventTypeRegistry, OutboxEventTypeRegistry>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         return services;

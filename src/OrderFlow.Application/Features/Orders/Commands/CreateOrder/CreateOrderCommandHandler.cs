@@ -25,6 +25,8 @@ public sealed class CreateOrderCommandHandler : IRequestHandler<CreateOrderComma
         foreach (var item in request.Items.Skip(1))
             order.AddItem(item.ProductId, item.Quantity, item.UnitPrice);
 
+        order.RegisterCreatedEvent();
+
         await _orderRepository.AddAsync(order, cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);

@@ -43,8 +43,7 @@ public sealed class RabbitMqConnection : IAsyncDisposable
 
             ConnectionFactory connectionFactory = CreateConnectionFactory();
 
-            _connection = await connectionFactory.CreateConnectionAsync(
-                cancellationToken);
+            _connection = await connectionFactory.CreateConnectionAsync(cancellationToken);
 
             return _connection;
         }

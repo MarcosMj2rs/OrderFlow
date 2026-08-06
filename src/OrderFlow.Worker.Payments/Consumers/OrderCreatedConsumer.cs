@@ -1,6 +1,5 @@
 ﻿using Microsoft.Extensions.Options;
 using OrderFlow.Infrastructure.Messaging.Consumers;
-using OrderFlow.Infrastructure.Messaging.Exceptions;
 using OrderFlow.Infrastructure.Messaging.RabbitMQ.Configuration;
 using OrderFlow.Infrastructure.Messaging.RabbitMQ.Connection;
 using OrderFlow.Worker.Payments.Messages;
@@ -39,9 +38,6 @@ public sealed class OrderCreatedConsumer : RabbitMqConsumerBase<OrderCreatedMess
          * Neste primeiro estágio, o processamento do pagamento
          * será representado apenas pelo registro no log.
          */
-
-        //TODO: Simular falha transitória para testar o mecanismo de retry
-        throw new TransientMessagingException("Simulated transient failure.");
 
         return Task.CompletedTask;
     }

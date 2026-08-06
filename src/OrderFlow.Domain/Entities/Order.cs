@@ -31,8 +31,6 @@ public sealed class Order : Entity
         Status = OrderStatus.PENDING;
 
         AddItem(productId, quantity, unitPrice);
-
-        RaiseDomainEvent(new OrderCreatedDomainEvent(Id, CustomerId, TotalAmount));
     }
 
     public void AddItem(Guid productId, int quantity, decimal unitPrice)
@@ -120,5 +118,13 @@ public sealed class Order : Entity
     private OrderItem? FindItem(Guid productId)
     {
         return _items.FirstOrDefault(x => x.ProductId == productId);
+    }
+
+    public void RegisterCreatedEvent()
+    {
+        if (_items.Count == 0)
+            throw new DomainException("An order must contain at least one item.");
+
+        RaiseDomainEvent(new OrderCreatedDomainEvent(Id, CustomerId, TotalAmount));
     }
 }
