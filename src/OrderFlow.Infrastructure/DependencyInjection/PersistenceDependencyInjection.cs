@@ -6,6 +6,7 @@ using OrderFlow.Application.Abstractions.Persistence;
 using OrderFlow.Domain.Repositories;
 using OrderFlow.Infrastructure.Persistence.Context;
 using OrderFlow.Infrastructure.Persistence.DomainEvents;
+using OrderFlow.Infrastructure.Persistence.Inbox;
 using OrderFlow.Infrastructure.Persistence.Outbox;
 using OrderFlow.Infrastructure.Persistence.Repositories;
 using OrderFlow.Infrastructure.Persistence.UnitOfWork;
@@ -41,6 +42,8 @@ public static class PersistenceDependencyInjection
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<IOrderReadRepository, OrderReadRepository>();
         services.AddScoped<IOutboxRepository, OutboxRepository>();
+        services.AddScoped<IInboxRepository, InboxRepository>();
+        services.AddScoped<IInboxProcessor, InboxProcessor>();
         services.AddScoped<IDomainEventCollector, EfCoreDomainEventCollector>();
         services.AddScoped<IOutboxMessageFactory, OutboxMessageFactory>();
         services.AddSingleton<IOutboxEventTypeRegistry, OutboxEventTypeRegistry>();
