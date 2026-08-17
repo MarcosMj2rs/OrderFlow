@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using OrderFlow.Infrastructure.Persistence.Context;
 
@@ -11,9 +12,11 @@ using OrderFlow.Infrastructure.Persistence.Context;
 namespace OrderFlow.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(OrderFlowDbContext))]
-    partial class OrderFlowDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260817020507_AddInboxMessageStatus")]
+    partial class AddInboxMessageStatus
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -90,9 +93,6 @@ namespace OrderFlow.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("ProcessedOnUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("ProcessingStartedOnUtc")
                         .HasColumnType("datetime2");
 
                     b.Property<DateTime>("ReceivedOnUtc")

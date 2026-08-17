@@ -2,7 +2,7 @@
 
 namespace OrderFlow.Infrastructure.Persistence.Inbox;
 
-public enum InboxMessageStatus
+public enum EInboxMessageStatus
 {
     [Description("Pending")]
     PROCESSING = 1,

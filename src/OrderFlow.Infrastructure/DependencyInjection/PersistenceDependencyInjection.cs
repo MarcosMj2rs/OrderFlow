@@ -39,6 +39,31 @@ public static class PersistenceDependencyInjection
             }
         });
 
+        services.AddDbContextFactory<OrderFlowDbContext>(
+        options =>
+        {
+            options.UseSqlServer(connectionString);
+
+            if (infrastructureOptions.EnableEfCoreLogging)
+            {
+                options
+                    .EnableDetailedErrors()
+                    .EnableSensitiveDataLogging()
+                    .LogTo(
+                        message => Debug.WriteLine(message),
+                        LogLevel.Information);
+            }
+        },
+        ServiceLifetime.Scoped);
+
+        services.AddOptions<InboxOptions>()
+            .Bind(configuration.GetSection(InboxOptions.SectionName))
+            .Validate(
+                        options => options.ProcessingTimeoutMinutes > 0,
+                        "Inbox ProcessingTimeoutMinutes must be greater than zero."
+                     )
+            .ValidateOnStart();
+
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<IOrderReadRepository, OrderReadRepository>();
         services.AddScoped<IOutboxRepository, OutboxRepository>();

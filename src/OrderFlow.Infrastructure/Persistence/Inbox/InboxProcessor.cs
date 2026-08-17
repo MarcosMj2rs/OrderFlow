@@ -1,44 +1,73 @@
 ﻿using OrderFlow.Infrastructure.Persistence.Context;
+using Microsoft.EntityFrameworkCore;
+using System.Data;
+using Microsoft.Extensions.Options;
 
 namespace OrderFlow.Infrastructure.Persistence.Inbox;
 
 public sealed class InboxProcessor : IInboxProcessor
 {
     private readonly IInboxRepository _inboxRepository;
+
     private readonly OrderFlowDbContext _dbContext;
 
-    public InboxProcessor(IInboxRepository inboxRepository, OrderFlowDbContext dbContext)
+    private readonly IDbContextFactory<OrderFlowDbContext> _dbContextFactory;
+
+    private readonly InboxOptions _options;
+
+    private TimeSpan ProcessingTimeout => TimeSpan.FromMinutes(_options.ProcessingTimeoutMinutes);
+
+
+    public InboxProcessor(IInboxRepository inboxRepository,
+                          OrderFlowDbContext dbContext,
+                          IDbContextFactory<OrderFlowDbContext> dbContextFactory,
+                          IOptions<InboxOptions> options)
     {
         _inboxRepository = inboxRepository;
         _dbContext = dbContext;
+        _dbContextFactory = dbContextFactory;
+        _options = options.Value;
     }
 
-    public async Task<bool> ProcessAsync(Guid eventId,
-                                         string type,
-                                         string payload,
-                                         Func<CancellationToken, Task> handler,
-                                         CancellationToken cancellationToken = default)
+    public async Task<EInboxProcessingResult> ProcessAsync(Guid eventId,
+                                                           string type,
+                                                           string payload,
+                                                           Func<CancellationToken, Task> handler,
+                                                           CancellationToken cancellationToken = default)
     {
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+
         var existingMessage = await _inboxRepository.GetByEventIdAsync(eventId, cancellationToken);
 
-        if (existingMessage?.ProcessedOnUtc is not null)
-            return false;
+        if (existingMessage?.Status == EInboxMessageStatus.PROCESSED)
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return EInboxProcessingResult.ALREADY_PROCESSED;
+        }
 
-        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+        if (existingMessage?.Status == EInboxMessageStatus.PROCESSING)
+        {
+            DateTime utcNow = DateTime.UtcNow;
+
+            if (!existingMessage.HasProcessingTimedOut(utcNow, ProcessingTimeout))
+            {
+                await transaction.CommitAsync(cancellationToken);
+                return EInboxProcessingResult.ALREADY_PROCESSING;
+            }
+
+            existingMessage.RestartProcessing(utcNow);
+        }
+
+        if (existingMessage?.Status == EInboxMessageStatus.FAILED)
+            existingMessage.MarkAsProcessing(DateTime.UtcNow);
+
+        var inboxMessage = existingMessage;
 
         try
         {
-            var inboxMessage = existingMessage;
-
             if (inboxMessage is null)
             {
-                inboxMessage = new InboxMessage
-                (
-                    eventId,
-                    type,
-                    payload,
-                    DateTime.UtcNow
-                );
+                inboxMessage = new InboxMessage(eventId, type, payload, DateTime.UtcNow);
 
                 await _inboxRepository.AddAsync(inboxMessage, cancellationToken);
             }
@@ -51,12 +80,38 @@ public sealed class InboxProcessor : IInboxProcessor
 
             await transaction.CommitAsync(cancellationToken);
 
-            return true;
+            return EInboxProcessingResult.PROCESSED;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             await transaction.RollbackAsync(cancellationToken);
+
+            await PersistFailureAsync(eventId, type, payload, ex.Message, cancellationToken);
+
             throw;
         }
+    }
+
+    private async Task PersistFailureAsync(Guid eventId,
+                                           string type,
+                                           string payload,
+                                           string error,
+                                           CancellationToken cancellationToken)
+    {
+        await using OrderFlowDbContext failureContext = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        InboxMessage? inboxMessage = await failureContext.InboxMessages
+            .SingleOrDefaultAsync(message => message.EventId == eventId, cancellationToken);
+
+        if (inboxMessage is null)
+        {
+            inboxMessage = new InboxMessage(eventId, type, payload, DateTime.UtcNow);
+
+            failureContext.InboxMessages.Add(inboxMessage);
+        }
+
+        inboxMessage.MarkAsFailed(error);
+
+        await failureContext.SaveChangesAsync(cancellationToken);
     }
 }

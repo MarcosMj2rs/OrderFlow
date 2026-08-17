@@ -14,7 +14,9 @@ public sealed class InboxMessage
 
     public string? Error { get; private set; }
 
-    public InboxMessageStatus Status { get; private set; }
+    public EInboxMessageStatus Status { get; private set; }
+
+    public DateTime ProcessingStartedOnUtc { get; private set; }
 
     public InboxMessage(Guid eventId, string type, string payload, DateTime receivedOnUtc)
     {
@@ -22,7 +24,8 @@ public sealed class InboxMessage
         Type = type;
         Payload = payload;
         ReceivedOnUtc = receivedOnUtc;
-        Status = InboxMessageStatus.PROCESSING;
+        Status = EInboxMessageStatus.PROCESSING;
+        ProcessingStartedOnUtc = receivedOnUtc;
     }
 
     public void MarkAsProcessed(DateTime processedOnUtc)
@@ -30,7 +33,7 @@ public sealed class InboxMessage
         if (processedOnUtc == default)
             throw new ArgumentException("ProcessedOnUtc must contain a valid date.", nameof(processedOnUtc));
 
-        Status = InboxMessageStatus.PROCESSED;
+        Status = EInboxMessageStatus.PROCESSED;
         ProcessedOnUtc = processedOnUtc;
         Error = null;
     }
@@ -41,15 +44,48 @@ public sealed class InboxMessage
             throw new ArgumentException("Error cannot be empty.", nameof(error));
 
         Error = error;
-        Status = InboxMessageStatus.FAILED;
+        ProcessedOnUtc = null;
+        Status = EInboxMessageStatus.FAILED;
     }
 
-    public void MarkAsProcessing()
+    public void MarkAsProcessing(DateTime processingStartedOnUtc)
     {
-        if (Status != InboxMessageStatus.FAILED)
+        if (Status != EInboxMessageStatus.FAILED)
             throw new InvalidOperationException("Only failed inbox messages can be moved back to processing.");
 
-        Status = InboxMessageStatus.PROCESSING;
+        if (processingStartedOnUtc == default)
+            throw new ArgumentException("ProcessingStartedOnUtc must contain a valid date.", nameof(processingStartedOnUtc));
+
+        Status = EInboxMessageStatus.PROCESSING;
+        ProcessingStartedOnUtc = processingStartedOnUtc;
+        Error = null;
+        ProcessedOnUtc = null;
+    }
+
+    public bool HasProcessingTimedOut(DateTime utcNow, TimeSpan processingTimeout)
+    {
+        if (Status != EInboxMessageStatus.PROCESSING)
+            return false;
+
+        if (utcNow == default)
+            throw new ArgumentException("UtcNow must contain a valid date.", nameof(utcNow));
+
+        if (processingTimeout <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(processingTimeout), "Processing timeout must be greater than zero.");
+
+        return utcNow - ProcessingStartedOnUtc >= processingTimeout;
+    }
+
+    public void RestartProcessing(DateTime processingStartedOnUtc)
+    {
+        if (Status != EInboxMessageStatus.PROCESSING)
+            throw new InvalidOperationException("Only processing inbox messages can restart processing.");
+
+        if (processingStartedOnUtc == default)
+            throw new ArgumentException("ProcessingStartedOnUtc must contain a valid date.", nameof(processingStartedOnUtc));
+
+        ProcessingStartedOnUtc = processingStartedOnUtc;
+        ProcessedOnUtc = null;
         Error = null;
     }
 }
