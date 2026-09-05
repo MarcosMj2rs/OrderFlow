@@ -3,7 +3,7 @@
 public sealed record OrderCreatedMessage
 (
     Guid EventId,
-    DateTime OcurredAt,
+    DateTime OccurredAt,
     Guid OrderId,
     Guid CustomerId,
     decimal TotalAmount
