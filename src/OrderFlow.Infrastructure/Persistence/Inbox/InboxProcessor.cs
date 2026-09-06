@@ -35,6 +35,46 @@ public sealed class InboxProcessor : IInboxProcessor
                                                            Func<CancellationToken, Task> handler,
                                                            CancellationToken cancellationToken = default)
     {
+        EInboxProcessingResult? startResult = await TryStartProcessingAsync(eventId,
+                                                                            type,
+                                                                            payload,
+                                                                            cancellationToken);
+
+        if (startResult.HasValue)
+            return startResult.Value;
+
+        try
+        {
+            await handler(cancellationToken);
+
+            var inboxMessage = await _inboxRepository.GetByEventIdAsync(eventId, cancellationToken);
+
+            if (inboxMessage is null)
+                throw new InvalidOperationException($"Inbox message '{eventId}' was not found after processing started.");
+
+            inboxMessage.MarkAsProcessed(DateTime.UtcNow);
+
+            await _dbContext.SaveChangesAsync(cancellationToken);
+
+            return EInboxProcessingResult.PROCESSED;
+        }
+        catch (Exception ex)
+        {
+            await PersistFailureAsync(eventId,
+                                      type,
+                                      payload,
+                                      ex.Message,
+                                      cancellationToken);
+
+            throw;
+        }
+    }
+
+    private async Task<EInboxProcessingResult?> TryStartProcessingAsync(Guid eventId,
+                                                                        string type,
+                                                                        string payload,
+                                                                        CancellationToken cancellationToken)
+    {
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
 
         var existingMessage = await _inboxRepository.GetByEventIdAsync(eventId, cancellationToken);
@@ -61,35 +101,16 @@ public sealed class InboxProcessor : IInboxProcessor
         if (existingMessage?.Status == EInboxMessageStatus.FAILED)
             existingMessage.MarkAsProcessing(DateTime.UtcNow);
 
-        var inboxMessage = existingMessage;
-
-        try
+        if (existingMessage is null)
         {
-            if (inboxMessage is null)
-            {
-                inboxMessage = new InboxMessage(eventId, type, payload, DateTime.UtcNow);
-
-                await _inboxRepository.AddAsync(inboxMessage, cancellationToken);
-            }
-
-            await handler(cancellationToken);
-
-            inboxMessage.MarkAsProcessed(DateTime.UtcNow);
-
-            await _dbContext.SaveChangesAsync(cancellationToken);
-
-            await transaction.CommitAsync(cancellationToken);
-
-            return EInboxProcessingResult.PROCESSED;
+            existingMessage = new InboxMessage(eventId, type, payload, DateTime.UtcNow);
+            await _inboxRepository.AddAsync(existingMessage, cancellationToken);
         }
-        catch (Exception ex)
-        {
-            await transaction.RollbackAsync(cancellationToken);
 
-            await PersistFailureAsync(eventId, type, payload, ex.Message, cancellationToken);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
-            throw;
-        }
+        return null;
     }
 
     private async Task PersistFailureAsync(Guid eventId,
