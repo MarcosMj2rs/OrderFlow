@@ -1,4 +1,6 @@
-﻿using Microsoft.Extensions.Options;
+﻿using MediatR;
+using Microsoft.Extensions.Options;
+using OrderFlow.Application.Features.Payments.Commands.ProcessPayment;
 using OrderFlow.Infrastructure.Messaging.Consumers;
 using OrderFlow.Infrastructure.Messaging.Exceptions;
 using OrderFlow.Infrastructure.Messaging.RabbitMQ.Configuration;
@@ -33,6 +35,7 @@ public sealed class OrderCreatedConsumer : RabbitMqConsumerBase<OrderCreatedMess
     {
         await using AsyncServiceScope scope = _scopeFactory.CreateAsyncScope();
 
+        ISender sender = scope.ServiceProvider.GetRequiredService<ISender>();
         IInboxProcessor inboxProcessor = scope.ServiceProvider.GetRequiredService<IInboxProcessor>();
 
         EInboxProcessingResult result = await inboxProcessor.ProcessAsync(message.EventId,
@@ -50,7 +53,9 @@ public sealed class OrderCreatedConsumer : RabbitMqConsumerBase<OrderCreatedMess
                                          message.CustomerId,
                                          message.TotalAmount);
 
-                await Task.CompletedTask;
+                await sender.Send(new ProcessPaymentCommand(message.OrderId,
+                                                            message.TotalAmount),
+                                 ct);
             },
             cancellationToken);
 

@@ -2,6 +2,9 @@
 using OrderFlow.Domain.Abstractions;
 using OrderFlow.Infrastructure.Persistence.Context;
 using OrderFlow.Infrastructure.Persistence.Outbox;
+using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
+using OrderFlow.Application.Exceptions;
 
 namespace OrderFlow.Infrastructure.Persistence.UnitOfWork;
 
@@ -31,7 +34,18 @@ public sealed class UnitOfWork : IUnitOfWork
         if (outboxMessages.Length > 0)
             await _context.OutboxMessages.AddRangeAsync(outboxMessages, cancellationToken);
 
-        await _context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception)
+            when (exception.InnerException is SqlException sqlException && sqlException.Number is 2601 or 2627)
+        {
+            foreach (var entry in exception.Entries)
+                entry.State = EntityState.Detached;
+
+            throw new UniqueConstraintException("A unique constraint was violated.", exception);
+        }
 
         Clear(domainEventCollection.Entities);
     }
