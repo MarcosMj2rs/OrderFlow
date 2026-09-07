@@ -1,4 +1,4 @@
-# 10-Inbox-Pattern
+# 09-Inbox-Pattern
 
 Status: Aceita
 
@@ -89,48 +89,75 @@ Mensagem recebida
         ↓
      EventId
         ↓
-Consultar Inbox
+  Consultar Inbox
         ↓
-Já processada?
-   ┌────┴────┐
-   │         │
-  Sim       Não
-   │         │
-   ▼         ▼
-Ignora    Processa
-lógica     mensagem
-   │         │
-   │         ▼
-   │     Marca como
-   │     processada
-   │         │
-   └────┬────┘
-        ▼
-       ACK
+    Estado atual?
+        │
+        ├── PROCESSED
+        │       ↓
+        │   Não processa novamente
+        │       ↓
+        │      ACK
+        │
+        ├── PROCESSING
+        │       ↓
+        │   Timeout expirou?
+        │       ├── Não → Já está sendo processada
+        │       └── Sim → Reinicia processamento
+        │
+        ├── FAILED
+        │       ↓
+        │   Reinicia processamento
+        │
+        └── Não existe
+                ↓
+           Cria PROCESSING
+                ↓
+          Persiste o claim
+                ↓
+          Executa o handler
+                ↓
+          ┌─────┴─────┐
+          │           │
+       Sucesso       Falha
+          │           │
+          ▼           ▼
+      PROCESSED     FAILED
+          │
+          ▼
+         ACK
 ```
 
-A Inbox não impede que o RabbitMQ entregue novamente uma mensagem.
+A Inbox não impede que o RabbitMQ entregue novamente uma mensagem. Sua responsabilidade é controlar de forma persistente o estado do processamento e impedir que uma nova entrega produza novamente os mesmos efeitos de negócio.
 
-Sua responsabilidade é impedir que uma nova entrega produza novamente os mesmos efeitos de negócio.
+No OrderFlow, uma mensagem pode assumir os estados `PROCESSING`, `PROCESSED` ou `FAILED`. Antes da execução do handler, o Consumer realiza o **claim** da mensagem, persistindo o estado `PROCESSING`. Somente após esse claim ser confirmado o processamento da lógica de negócio é iniciado.
+
+Essa separação permite que outras instâncias do Consumer identifiquem que uma mensagem já está sendo processada, além de possibilitar a recuperação de processamentos interrompidos por meio do timeout configurado.
 
 ---
 
 # Primeira Entrega
 
-Na primeira vez que determinado `EventId` é recebido, ainda não existe um processamento concluído correspondente na Inbox.
+Na primeira vez que determinado `EventId` é recebido, ainda não existe um registro correspondente na Inbox.
+
+O Consumer realiza então o **claim** da mensagem, criando o registro com estado `PROCESSING` antes da execução do handler.
 
 ```text
 RabbitMQ
     ↓
 Consumer
     ↓
-EventId não processado
+EventId não existe na Inbox
     ↓
-Processamento
+Cria registro PROCESSING
     ↓
-Inbox
+Persiste e confirma o claim
     ↓
-Marca como processado
+Executa o handler
+    ↓
+Processamento concluído
+    ↓
+Marca como PROCESSED
     ↓
 ACK
 ```
@@ -143,7 +170,7 @@ A partir desse momento, o `EventId` representa uma mensagem já processada.
 
 # Redelivery
 
-Caso o RabbitMQ entregue novamente uma mensagem cujo `EventId` já esteja marcado como processado:
+Quando o RabbitMQ entrega novamente uma mensagem, o comportamento depende do estado persistido para aquele `EventId` na Inbox.
 
 ```text
 RabbitMQ
@@ -152,18 +179,32 @@ Consumer
     ↓
 EventId
     ↓
-Inbox
+Consultar Inbox
     ↓
-Já processado
-    ↓
-Não executa novamente
-    ↓
-ACK
+Estado?
+    │
+    ├── PROCESSED
+    │       ↓
+    │   Não executa novamente
+    │       ↓
+    │      ACK
+    │
+    ├── PROCESSING
+    │       ↓
+    │   Verifica timeout
+    │
+    └── FAILED
+            ↓
+        Nova tentativa
 ```
 
-O ACK informa ao RabbitMQ que a mensagem não precisa continuar sendo entregue.
+Uma mensagem em `PROCESSED` já concluiu seu processamento e, portanto, não executará novamente o handler.
 
-Dessa forma, a aplicação aceita a possibilidade de **entrega duplicada**, mas evita **efeitos de negócio duplicados**.
+Uma mensagem em `FAILED` permanece elegível para uma nova tentativa de processamento.
+
+Quando a mensagem estiver em `PROCESSING`, o Consumer verificará o tempo decorrido desde o início do processamento. Se o timeout ainda não tiver expirado, outra instância não deverá executar simultaneamente o handler. Se o timeout tiver expirado, o processamento poderá ser reiniciado.
+
+Dessa forma, a aplicação aceita a possibilidade de **entrega duplicada**, mas controla persistentemente se aquela entrega deve ou não executar novamente a lógica de negócio.
 
 > **Outbox protege o lado produtor; Inbox protege o lado consumidor.**
 
@@ -327,6 +368,26 @@ Isso permite que o controle de duplicidade sobreviva a:
 
 ---
 
+## Estado Persistido
+
+Além do `EventId`, a Inbox mantém informações que permitem acompanhar o ciclo de vida do processamento da mensagem.
+
+Os principais estados são:
+
+| Estado | Significado |
+| --- | --- |
+| `PROCESSING` | A mensagem foi reivindicada por um Consumer e seu processamento foi iniciado. |
+| `PROCESSED` | O processamento foi concluído com sucesso. |
+| `FAILED` | O processamento falhou e a mensagem permanece elegível para uma nova tentativa. |
+
+O instante `ProcessingStartedOnUtc` registra quando o processamento foi iniciado ou reiniciado. Essa informação permite determinar se uma mensagem em `PROCESSING` ainda representa um processamento ativo ou se ultrapassou o timeout configurado.
+
+Quando o processamento termina com sucesso, `ProcessedOnUtc` registra sua conclusão. Em caso de falha, `Error` mantém a informação correspondente ao erro ocorrido.
+
+Assim, a Inbox não mantém apenas um histórico de mensagens recebidas. Ela funciona também como um registro persistente do **estado do processamento** de cada evento.
+
+---
+
 # Inbox e Retry
 
 Inbox e Retry resolvem problemas diferentes.
@@ -351,9 +412,113 @@ Retry  Inbox
    Processada
 ```
 
-Uma mensagem cujo processamento falhou não deve ser considerada concluída apenas porque foi recebida.
+Uma mensagem cujo processamento falhou não deve ser considerada concluída apenas porque foi recebida. Nesse caso, seu estado na Inbox é alterado para `FAILED`.
 
-Ela precisa continuar elegível para uma nova tentativa.
+Quando o mecanismo de Retry entrega novamente a mesma mensagem, a Inbox permite que ela transite de `FAILED` para `PROCESSING`, registrando um novo início de processamento.
+
+```text
+PROCESSING
+    ↓
+  Falha
+    ↓
+ FAILED
+    ↓
+  Retry
+    ↓
+PROCESSING
+    ↓
+ Sucesso
+    ↓
+PROCESSED
+```
+
+Dessa forma, a Inbox impede a repetição de mensagens já concluídas sem bloquear novas tentativas de mensagens cujo processamento falhou.
+
+---
+
+# Timeout de Processamento
+
+O estado `PROCESSING` indica que uma mensagem foi reivindicada por um Consumer e que seu processamento está em andamento.
+
+Entretanto, um Worker pode ser interrompido depois de realizar o claim e antes de concluir o processamento. Nesse cenário, o registro poderia permanecer indefinidamente em `PROCESSING`.
+
+Para evitar esse bloqueio permanente, o OrderFlow utiliza um **timeout de processamento**.
+
+```text
+PROCESSING
+    ↓
+Nova entrega
+    ↓
+Tempo limite expirou?
+    │
+    ├── Não
+    │     ↓
+    │  Mantém processamento atual
+    │
+    └── Sim
+          ↓
+      Considera processamento abandonado
+          ↓
+      Reinicia PROCESSING
+          ↓
+      Atualiza ProcessingStartedOnUtc
+          ↓
+      Executa novamente o handler
+```
+
+Quando uma nova entrega encontra uma mensagem em `PROCESSING`, o tempo decorrido desde `ProcessingStartedOnUtc` é comparado com o timeout configurado.
+
+Se o timeout ainda não tiver expirado, a mensagem é considerada como estando legitimamente em processamento e outra instância do Consumer não deverá executar simultaneamente o handler.
+
+Se o timeout tiver expirado, o processamento anterior é considerado abandonado. A mensagem poderá então ter seu processamento reiniciado, atualizando `ProcessingStartedOnUtc` antes de uma nova execução do handler.
+
+No OrderFlow, esse tempo limite é configurável por meio das opções da Inbox, evitando que a regra de recuperação fique fixa na implementação.
+
+> O timeout não representa uma falha da mensagem. Ele representa o limite utilizado para distinguir um processamento ainda ativo de um processamento possivelmente abandonado.
+
+---
+
+# Concorrência entre Consumers
+
+Em um ambiente com múltiplas instâncias do Worker, duas entregas da mesma mensagem podem ser recebidas por Consumers diferentes.
+
+O estado `PROCESSING` persistido antes da execução do handler permite que uma segunda instância identifique que aquela mensagem já possui um processamento em andamento.
+
+```text
+        Mesma mensagem
+             │
+       EventId = ABC
+             │
+       ┌─────┴─────┐
+       ↓           ↓
+   Consumer A   Consumer B
+       │           │
+       ↓           ↓
+   Consulta      Consulta
+    Inbox         Inbox
+       │           │
+       ↓           ↓
+   Realiza       Encontra
+    claim       PROCESSING
+       │           │
+       ↓           ↓
+   PROCESSING   Não executa
+       │        o handler
+       ↓
+   Executa
+   handler
+       │
+       ↓
+   PROCESSED
+```
+
+Quando uma instância obtém o claim, o estado `PROCESSING` é persistido e confirmado antes da execução do handler.
+
+Enquanto esse processamento estiver dentro do timeout configurado, outra instância que receber o mesmo `EventId` reconhecerá que existe um processamento em andamento e não executará simultaneamente a lógica de negócio.
+
+Após a conclusão bem-sucedida, o estado passa para `PROCESSED`. Uma entrega posterior do mesmo evento será então reconhecida como já processada e não executará novamente o handler.
+
+Esse mecanismo reduz o risco de execução concorrente dos mesmos efeitos de negócio em um cenário com múltiplos Workers.
 
 ---
 
@@ -420,35 +585,57 @@ Isso permite que o Consumer implemente comportamento idempotente mesmo utilizand
 Com Outbox e Inbox, o fluxo conceitual do OrderFlow passa a ser:
 
 ```text
-Order
-    ↓
+OrderFlow.Api
+     ↓
+Command
+     ↓
+Aggregate
+     ↓
 Domain Event
-    ↓
-OutboxMessages
-    ↓
-Commit SQL Server
-    ↓
-Worker.Outbox
-    ↓
+     ↓
+Outbox
+     ↓
+Outbox Worker
+     ↓
 RabbitMQ
-    ↓
-Worker.Payments
-    ↓
-EventId
-    ↓
-Inbox
-    ↓
-Já processado?
- ┌─────┴─────┐
- │           │
-Sim         Não
- │           │
- ▼           ▼
-ACK      Processamento
+     ↓
+Payments Worker
+     ↓
+Consumer
+     ↓
+Consulta Inbox pelo EventId
+     ↓
+Estado atual?
+     │
+     ├── PROCESSED
+     │       ↓
+     │      ACK
+     │
+     ├── PROCESSING
+     │       ↓
+     │   Verifica timeout
+     │
+     ├── FAILED
+     │       ↓
+     │   Reinicia PROCESSING
+     │
+     └── Não existe
              ↓
-        Marca processado
+        Cria PROCESSING
              ↓
-            ACK
+        Persiste o claim
+             ↓
+        Executa handler
+             ↓
+       ┌─────┴─────┐
+       │           │
+    Sucesso       Falha
+       │           │
+       ↓           ↓
+   PROCESSED     FAILED
+       │           │
+       ↓           ↓
+      ACK      Retry / DLQ
 ```
 
 Esse fluxo combina:
@@ -465,19 +652,22 @@ Esse fluxo combina:
 
 # Resumo
 
-O Inbox Pattern complementa o Transactional Outbox no lado consumidor.
+O Inbox Pattern garante o processamento idempotente de mensagens em arquiteturas distribuídas.
 
-Enquanto o Outbox garante que eventos persistidos pelo produtor possam ser publicados de forma confiável, o Inbox permite que o consumidor reconheça mensagens já processadas.
+No OrderFlow, a Inbox:
 
-Os principais conceitos são:
+* utiliza o `EventId` como identificador da mensagem;
+* persiste o estado do processamento no SQL Server;
+* realiza o claim da mensagem como `PROCESSING` antes da execução do handler;
+* marca mensagens concluídas como `PROCESSED`;
+* registra falhas utilizando o estado `FAILED`;
+* permite que mensagens `FAILED` sejam processadas novamente pelo mecanismo de Retry;
+* impede que mensagens `PROCESSED` executem novamente a lógica de negócio;
+* identifica mensagens que já estão em `PROCESSING`;
+* utiliza `ProcessingStartedOnUtc` e um timeout configurável para recuperar processamentos possivelmente abandonados;
+* permite que múltiplas instâncias do Worker coordenem o processamento por meio do estado persistido da Inbox;
+* trabalha em conjunto com Retry e Dead Letter Queue.
 
-* mensagens podem ser entregues mais de uma vez;
-* cada evento possui um `EventId` único e estável;
-* a Inbox mantém um registro persistente do processamento;
-* mensagens já concluídas não repetem seus efeitos de negócio;
-* mensagens duplicadas podem ser confirmadas com ACK;
-* mensagens que falharam permanecem elegíveis para nova tentativa;
-* Inbox, Retry e DLQ possuem responsabilidades distintas;
-* At Least Once Delivery exige consumidores preparados para duplicidades.
+Com isso, o OrderFlow combina a garantia **At Least Once** do RabbitMQ com controle persistente de idempotência no lado consumidor.
 
-> **Transactional Outbox garante publicação confiável. Inbox Pattern garante processamento idempotente.**
+Enquanto o **Outbox Pattern** garante a publicação confiável dos eventos pelo produtor, o **Inbox Pattern** controla o processamento confiável desses eventos pelo consumidor.

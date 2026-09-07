@@ -4,18 +4,25 @@
 
 ## Registro de Decisões
 
-| ID  | Decisão                                                                                                                          |
-| --- | -------------------------------------------------------------------------------------------------------------------------------- |
-| D01 | O OrderFlow utilizará o Inbox Pattern para garantir processamento idempotente das mensagens recebidas.                           |
-| D02 | Cada evento recebido será identificado pelo `EventId` original gerado pelo produtor.                                             |
-| D03 | O `EventId` será utilizado para detectar mensagens já processadas.                                                               |
-| D04 | O registro da Inbox será persistido no SQL Server.                                                                               |
-| D05 | O processamento da mensagem e a atualização de seu estado na Inbox deverão ocorrer de forma consistente.                         |
-| D06 | Mensagens já processadas não executarão novamente a lógica de negócio.                                                           |
-| D07 | Mensagens duplicadas deverão ser reconhecidas e confirmadas com ACK, evitando redelivery desnecessário.                          |
-| D08 | A implementação será integrada inicialmente ao `OrderFlow.Worker.Payments`.                                                      |
-| D09 | A infraestrutura da Inbox permanecerá na camada `Infrastructure`, preservando o Domain independente de mecanismos de mensageria. |
-| D10 | A estratégia deverá ser compatível com Retry, Dead Letter Queue e o modelo At Least Once Delivery já adotado pelo OrderFlow.     |
+| ID  | Decisão                                                                                                                          											   |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| D01 | O OrderFlow utilizará o Inbox Pattern para garantir processamento idempotente das mensagens recebidas.                           											   |
+| D02 | Cada evento recebido será identificado pelo `EventId` original gerado pelo produtor.                                             											   |
+| D03 | O `EventId` será utilizado para detectar mensagens já processadas.                                                               											   |
+| D04 | O registro da Inbox será persistido no SQL Server.                                                                               											   |
+| D05 | O processamento da mensagem e a atualização de seu estado na Inbox deverão ocorrer de forma consistente.                         											   |
+| D06 | Mensagens já processadas não executarão novamente a lógica de negócio.                                                           											   |
+| D07 | Mensagens duplicadas deverão ser reconhecidas e confirmadas com ACK, evitando redelivery desnecessário.                          											   |
+| D08 | A implementação será integrada inicialmente ao `OrderFlow.Worker.Payments`.                                                      											   |
+| D09 | A infraestrutura da Inbox permanecerá na camada `Infrastructure`, preservando o Domain independente de mecanismos de mensageria. 											   |
+| D10 | A estratégia deverá ser compatível com Retry, Dead Letter Queue e o modelo At Least Once Delivery já adotado pelo OrderFlow.     											   |
+| D11 | Uma mensagem nova será registrada inicialmente com o estado `PROCESSING` antes da execução da lógica de negócio. 															   |
+| D12 | O claim da mensagem será persistido e confirmado em transação própria antes da execução do handler, tornando o estado `PROCESSING` visível para outras instâncias do Consumer. |
+| D13 | Mensagens em estado `PROCESSED` não executarão novamente a lógica de negócio e serão reconhecidas como já processadas. 														   |
+| D14 | Mensagens em estado `FAILED` poderão retornar para `PROCESSING` em uma nova tentativa. 																						   |
+| D15 | Mensagens que permanecerem em `PROCESSING` além do tempo limite configurado serão consideradas abandonadas e poderão ter seu processamento reiniciado. 						   |
+| D16 | Mensagens em `PROCESSING` cujo timeout ainda não tenha expirado não serão processadas simultaneamente por outra instância do Consumer. 										   |
+| D17 | O tempo limite de processamento da Inbox será configurável, permitindo adequação ao tempo esperado das operações executadas pelos Consumers. 								   |
 
 ## Escopo desta ADR
 
@@ -223,6 +230,14 @@ Antes de executar novamente a lógica de negócio, o fluxo de consumo verificar�
 
 Mensagens cujo processamento não tenha sido concluído deverão permanecer elegíveis para nova tentativa, preservando a compatibilidade com Retry, Dead Letter Queue e com o modelo **At Least Once Delivery** adotado pelo OrderFlow.
 
+O processamento da Inbox será dividido em duas fases. Na primeira, o Consumer realizará o **claim** da mensagem, persistindo o estado `PROCESSING` em uma transação própria antes da execução da lógica de negócio. Essa transação será concluída antes da execução do handler, permitindo que outras instâncias do Consumer observem que a mensagem já está em processamento.
+
+Após o claim, o handler executará a lógica correspondente à mensagem. Quando o processamento for concluído com sucesso, o registro será alterado para `PROCESSED`. Caso ocorra uma falha, o registro será alterado para `FAILED`, permanecendo elegível para uma nova tentativa.
+
+Uma mensagem encontrada em `PROCESSING` não será processada simultaneamente por outra instância enquanto seu tempo limite de processamento não tiver expirado. Caso esse limite seja excedido, o processamento será considerado abandonado e uma nova tentativa poderá reiniciar o estado `PROCESSING`, atualizando o instante de início do processamento.
+
+O tempo limite será configurável por meio das opções da Inbox, permitindo distinguir um processamento legítimo em andamento de um processamento abandonado em decorrência de falha ou interrupção do Worker.
+
 A implementação será integrada inicialmente ao `OrderFlow.Worker.Payments`, enquanto os detalhes de persistência permanecerão na camada `Infrastructure`, mantendo o Domain independente do mecanismo de mensageria.
 
 ---
@@ -230,26 +245,40 @@ A implementação será integrada inicialmente ao `OrderFlow.Worker.Payments`, e
 # Fluxo Arquitetural
 
 ```mermaid
-flowchart LR
+flowchart TD
 
-A[RabbitMQ Queue]
---> B[OrderCreatedConsumer]
---> C[EventId]
---> D[Inbox]
+    A[RabbitMQ Queue]
+    --> B[Consumer]
+    --> C[Consulta Inbox pelo EventId]
 
-D --> E{Mensagem já processada?}
+    C --> D{Estado atual}
 
-E -->|Sim| F[Ignora lógica de negócio]
-F --> G[ACK]
+    D -->|PROCESSED| E[Não executa o handler]
+    E --> F[ACK]
 
-E -->|Não| H[Processamento]
-H --> I[Marca Inbox como processada]
-I --> G
+    D -->|PROCESSING| G{Timeout expirou?}
+    G -->|Não| H[ALREADY_PROCESSING]
+    G -->|Sim| I[Reinicia PROCESSING]
+
+    D -->|FAILED| J[Retorna para PROCESSING]
+    D -->|Mensagem nova| K[Cria registro PROCESSING]
+
+    I --> L[Commit do claim]
+    J --> L
+    K --> L
+
+    L --> M[Executa handler]
+
+    M -->|Sucesso| N[Marca PROCESSED]
+    N --> F
+
+    M -->|Falha| O[Marca FAILED]
+    O --> P[Retry / DLQ]
 ```
 
-O fluxo garante que uma mensagem já concluída possa ser reconhecida antes da repetição dos seus efeitos de negócio.
+O fluxo separa explicitamente o **claim da mensagem** da execução do handler. O estado `PROCESSING` é persistido e confirmado antes da lógica de negócio, permitindo que outras instâncias do Consumer detectem um processamento já em andamento.
 
-Mensagens cujo processamento anterior não tenha sido concluído permanecem elegíveis para nova tentativa.
+Mensagens `PROCESSED` não executam novamente o handler. Mensagens `FAILED` permanecem elegíveis para nova tentativa, enquanto mensagens em `PROCESSING` somente poderão ser retomadas quando o timeout configurado tiver expirado.
 
 ---
 
@@ -270,9 +299,13 @@ Responsável por:
 
 Responsável por:
 
-* persistir a identificação das mensagens recebidas;
-* utilizar o `EventId` para detectar mensagens duplicadas;
-* controlar o estado de processamento;
+* persistir a identificação das mensagens recebidas por meio do `EventId`;
+* controlar os estados `PROCESSING`, `PROCESSED` e `FAILED`;
+* realizar o claim persistente da mensagem antes da execução do handler;
+* impedir o processamento concorrente de uma mensagem cujo estado `PROCESSING` ainda esteja dentro do timeout configurado;
+* permitir a retomada de mensagens em estado `FAILED`;
+* permitir a recuperação de mensagens que permaneceram em `PROCESSING` além do timeout configurado;
+* registrar a conclusão do processamento por meio do estado `PROCESSED`;
 * impedir a repetição dos efeitos de negócio de mensagens já concluídas.
 
 ---
@@ -361,13 +394,18 @@ Integração do fluxo de consumo com a Inbox para detectar mensagens já process
 
 A implementação será considerada concluída quando:
 
-* uma mensagem recebida pela primeira vez for processada normalmente;
+* uma mensagem recebida pela primeira vez for registrada como `PROCESSING` antes da execução do handler;
 * o `EventId` da mensagem for persistido na Inbox;
-* uma mensagem processada com sucesso for marcada como concluída;
-* o redelivery do mesmo `EventId` não executar novamente a lógica de negócio;
-* uma mensagem duplicada já concluída resultar em ACK;
-* uma mensagem cujo processamento falhou permanecer elegível para nova tentativa;
-* o controle de duplicidade continuar funcionando após reinicialização do Worker;
+* uma mensagem processada com sucesso for marcada como `PROCESSED`;
+* o redelivery do mesmo `EventId` já processado não executar novamente a lógica de negócio;
+* uma mensagem duplicada em estado `PROCESSED` resultar em ACK;
+* uma falha durante o processamento marcar a mensagem como `FAILED`;
+* uma mensagem em estado `FAILED` permanecer elegível para nova tentativa;
+* uma nova tentativa de uma mensagem `FAILED` permitir sua transição para `PROCESSING` e posteriormente para `PROCESSED`;
+* uma mensagem em `PROCESSING` dentro do timeout não ser processada simultaneamente por outra instância do Consumer;
+* uma mensagem que permanecer em `PROCESSING` além do timeout configurado poder ter seu processamento reiniciado;
+* o estado `PROCESSING` persistido ser visível para outras instâncias do Consumer enquanto o handler estiver em execução;
+* o controle de duplicidade continuar funcionando após reinicializações do Worker;
 * o comportamento permanecer compatível com Retry e Dead Letter Queue.
 
 ---
@@ -383,6 +421,7 @@ A implementação será considerada concluída quando:
 
 # Histórico
 
-| Data       | Alteração                                                                |
-| ---------- | ------------------------------------------------------------------------ |
-| 14/08/2026 | Criação da ADR-010 definindo a estratégia de Inbox Pattern do OrderFlow. |
+| Data       | Alteração                                                                																																		   |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 14/08/2026 | Criação da ADR-010 definindo a estratégia de Inbox Pattern do OrderFlow. 																																		   |
+| 06/09/2026 | Evolução do Inbox Pattern com estados `PROCESSING`, `PROCESSED` e `FAILED`, claim persistente antes da execução do handler, recuperação por timeout e suporte ao processamento concorrente entre múltiplos Workers. |
