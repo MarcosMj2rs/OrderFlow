@@ -18,7 +18,7 @@ public sealed class RabbitMqOptions
 
     public ushort PrefetchCount { get; init; } = 1;
 
-    public int RetryDelayMilliseconds { get; init; } = 10_000;
+    public int RetryBaseDelayMilliseconds { get; init; } = 10_000;
 
     public int MaxRetryAttempts { get; init; } = 3;
 }

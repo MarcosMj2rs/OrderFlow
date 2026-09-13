@@ -7,8 +7,7 @@ public sealed class OrderCreatedConsumerHostedService : IHostedService
     private readonly OrderCreatedConsumer _consumer;
     private readonly ILogger<OrderCreatedConsumerHostedService> _logger;
 
-    public OrderCreatedConsumerHostedService(OrderCreatedConsumer consumer,
-                                             ILogger<OrderCreatedConsumerHostedService> logger)
+    public OrderCreatedConsumerHostedService(OrderCreatedConsumer consumer, ILogger<OrderCreatedConsumerHostedService> logger)
     {
         _consumer = consumer;
         _logger = logger;

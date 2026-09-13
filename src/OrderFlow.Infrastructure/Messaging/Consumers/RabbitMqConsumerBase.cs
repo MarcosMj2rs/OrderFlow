@@ -206,6 +206,7 @@ public abstract class RabbitMqConsumerBase<TMessage> : IAsyncDisposable
         int currentRetryCount = GetRetryCount(eventArgs.BasicProperties);
 
         int nextRetryCount = currentRetryCount + 1;
+        int retryDelayMilliseconds = CalculateRetryDelay(nextRetryCount);
 
         if (nextRetryCount > _options.MaxRetryAttempts)
         {
@@ -221,9 +222,10 @@ public abstract class RabbitMqConsumerBase<TMessage> : IAsyncDisposable
         }
 
         _logger.LogWarning(exception,
-                           "Publishing message to retry queue. Queue: {QueueName}. RetryCount: {RetryCount}. MessageId: {MessageId}",
+                           "Publishing message to retry queue. Queue: {QueueName}. RetryCount: {RetryCount}. RetryDelayMilliseconds: {RetryDelayMilliseconds}. MessageId: {MessageId}",
                            QueueName,
                            nextRetryCount,
+                           retryDelayMilliseconds,
                            eventArgs.BasicProperties.MessageId);
 
         await PublishAndAcknowledgeAsync(eventArgs, RetryRoutingKey, nextRetryCount);
@@ -245,7 +247,9 @@ public abstract class RabbitMqConsumerBase<TMessage> : IAsyncDisposable
         };
     }
 
-    private static BasicProperties CreateBasicProperties(IReadOnlyBasicProperties originalProperties, int retryCount)
+    private static BasicProperties CreateBasicProperties(IReadOnlyBasicProperties originalProperties,
+                                                         int retryCount,
+                                                         int? expirationMilliseconds = null)
     {
         Dictionary<string, object?> headers = originalProperties.Headers is null
                 ? []
@@ -263,7 +267,8 @@ public abstract class RabbitMqConsumerBase<TMessage> : IAsyncDisposable
             Type = originalProperties.Type,
             Timestamp = originalProperties.Timestamp,
             AppId = originalProperties.AppId,
-            Headers = headers
+            Headers = headers,
+            Expiration = expirationMilliseconds?.ToString(),
         };
     }
 
@@ -275,7 +280,9 @@ public abstract class RabbitMqConsumerBase<TMessage> : IAsyncDisposable
         if (_publishChannel is null)
             throw new InvalidOperationException("RabbitMQ publisher channel was not initialized.");
 
-        BasicProperties properties = CreateBasicProperties(eventArgs.BasicProperties, retryCount);
+        int? expirationMilliseconds = routingKey == RetryRoutingKey ? CalculateRetryDelay(retryCount) : null;
+
+        BasicProperties properties = CreateBasicProperties(eventArgs.BasicProperties, retryCount, expirationMilliseconds);
 
         await _publishChannel.BasicPublishAsync(exchange: _options.ExchangeName,
                                                 routingKey: routingKey,
@@ -287,5 +294,10 @@ public abstract class RabbitMqConsumerBase<TMessage> : IAsyncDisposable
         await _channel.BasicAckAsync(deliveryTag: eventArgs.DeliveryTag,
                                     multiple: false,
                                     cancellationToken: eventArgs.CancellationToken);
+    }
+
+    private int CalculateRetryDelay(int retryCount)
+    {
+        return checked(_options.RetryBaseDelayMilliseconds * (1 << (retryCount - 1)));
     }
 }

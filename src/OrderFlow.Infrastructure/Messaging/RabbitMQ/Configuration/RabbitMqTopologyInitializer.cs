@@ -79,7 +79,6 @@ public sealed class RabbitMqTopologyInitializer
     {
         var arguments = new Dictionary<string, object?>
         {
-            ["x-message-ttl"] = _options.RetryDelayMilliseconds,
             ["x-dead-letter-exchange"] = _options.ExchangeName,
             ["x-dead-letter-routing-key"] = OrderCreatedRoutingKey
         };

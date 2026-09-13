@@ -38,6 +38,15 @@ public sealed class OrderCreatedConsumer : RabbitMqConsumerBase<OrderCreatedMess
         ISender sender = scope.ServiceProvider.GetRequiredService<ISender>();
         IInboxProcessor inboxProcessor = scope.ServiceProvider.GetRequiredService<IInboxProcessor>();
 
+        if (message.EventId == Guid.Empty)
+            throw new PermanentMessagingException("OrderCreatedMessage EventId cannot be empty.");
+
+        if (message.OrderId == Guid.Empty)
+            throw new PermanentMessagingException("OrderCreatedMessage OrderId cannot be empty.");
+
+        if (message.CustomerId == Guid.Empty)
+            throw new PermanentMessagingException("OrderCreatedMessage CustomerId cannot be empty.");
+
         EInboxProcessingResult result = await inboxProcessor.ProcessAsync(message.EventId,
             nameof(OrderCreatedMessage),
             JsonSerializer.Serialize(message),
