@@ -8,14 +8,15 @@
 |---|---|
 | D01 | O OrderFlow utilizará Dead Letter Queue para isolar mensagens que não puderem ser processadas com sucesso. |
 | D02 | Toda fila principal possuirá uma DLQ correspondente. |
-| D03 | Mensagens que excederem o limite máximo de tentativas serão encaminhadas para a DLQ. |
-| D04 | Falhas permanentes poderão ser encaminhadas diretamente para a DLQ sem passar pelo fluxo de Retry. |
-| D05 | A mensagem original deverá ser preservada, incluindo body, headers e propriedades AMQP. |
+| D03 | Mensagens que excederem o limite máximo de tentativas de Retry serão publicadas na DLQ. |
+| D04 | Falhas permanentes serão publicadas diretamente na DLQ, sem passar pelo fluxo de Retry. |
+| D05 | A publicação para a DLQ preservará o body, os headers e as propriedades AMQP relevantes da mensagem original. |
 | D06 | A DLQ não será utilizada para reprocessamento automático. |
-| D07 | O reprocessamento de mensagens da DLQ será manual em uma primeira etapa. |
+| D07 | Quando necessário, o reprocessamento de mensagens da DLQ será iniciado manualmente após investigação da causa da falha; o procedimento operacional não faz parte da implementação atual. |
 | D08 | A infraestrutura deverá registrar logs quando uma mensagem for encaminhada para a DLQ. |
 | D09 | A primeira implementação utilizará uma DLQ dedicada para cada fila principal. |
 | D10 | A estratégia será compatível com o modelo de entrega At Least Once. |
+| D11 | A entrega original somente será confirmada após a confirmação da publicação da mensagem na DLQ. |
 
 ## Escopo desta ADR
 
@@ -59,7 +60,7 @@ Algumas falhas são transitórias e podem ser resolvidas com Retry.
 Outras representam problemas permanentes, como:
 
 - payload inválido;
-- violação de regra de negócio;
+- violação permanente de regra de negócio;
 - versão incompatível do contrato;
 - inconsistência de dados.
 
@@ -99,7 +100,7 @@ Mensagens problemáticas devem permanecer disponíveis para investigação.
 
 ## Isolamento
 
-Mensagens inválidas não devem permanecer interferindo no fluxo principal.
+Mensagens que não puderem ser processadas não devem permanecer interferindo no fluxo principal.
 
 ---
 
@@ -107,7 +108,9 @@ Mensagens inválidas não devem permanecer interferindo no fluxo principal.
 
 A primeira implementação privilegiará simplicidade.
 
-O reprocessamento será manual.
+Quando necessário, o reprocessamento será iniciado manualmente após a investigação da causa da falha.
+
+O procedimento operacional de reprocessamento será definido em evolução posterior.
 
 ---
 
@@ -184,8 +187,14 @@ Dead Letter Queue
 
 O OrderFlow utilizará uma Dead Letter Queue dedicada para armazenar mensagens que:
 
-- excederem o limite de Retry;
+- excederem o limite máximo de Retry;
 - apresentarem falhas permanentes.
+
+Falhas permanentes serão publicadas diretamente na DLQ, sem passar pela Retry Queue.
+
+Quando o limite máximo de Retry for excedido, a mensagem também será publicada na DLQ.
+
+Em ambos os casos, a entrega original somente receberá `ACK` após a confirmação da publicação na DLQ.
 
 Essas mensagens não retornarão automaticamente ao fluxo principal.
 
@@ -227,27 +236,47 @@ B -->|Sucesso| C[ACK]
 
 B -->|Falha transitória| D[Retry Queue]
 
-D -->|TTL| A
+D -->|Expiration| A
 
-B -->|Falha permanente| E[DLQ]
+B -->|Falha permanente| E[DLQ Publisher]
 
 B -->|Limite excedido| E
+
+E --> F[Dead Letter Queue]
 ```
 
 ---
 
 # Conteúdo da Mensagem
 
-A mensagem enviada para a DLQ deverá preservar:
+A publicação para a DLQ deverá preservar, quando presentes:
 
 - Body;
 - Headers;
-- Routing Key;
-- Exchange;
 - Delivery Mode;
 - CorrelationId;
 - MessageId;
-- Retry Count.
+- Retry Count;
+- demais propriedades AMQP relevantes da mensagem original.
+
+A publicação utilizará a exchange e a routing key definidas para o fluxo de DLQ.
+
+---
+
+# Publicação e Confirmação
+
+O encaminhamento para a DLQ será realizado por meio de uma nova publicação utilizando a routing key destinada à Dead Letter Queue.
+
+O fluxo será:
+
+1. identificar que a mensagem deve ser enviada para a DLQ;
+2. publicar a mensagem utilizando a routing key da DLQ;
+3. aguardar a confirmação da publicação;
+4. executar o `ACK` da entrega original.
+
+Caso a publicação na DLQ falhe, o `ACK` da entrega original não deverá ser realizado.
+
+Essa ordem reduz o risco de perda da mensagem entre o processamento da entrega original e sua publicação na Dead Letter Queue.
 
 ---
 
@@ -258,55 +287,72 @@ A mensagem enviada para a DLQ deverá preservar:
 Responsável por:
 
 - identificar falhas permanentes;
-- verificar limite de Retry;
-- encaminhar mensagens para a DLQ;
-- registrar logs;
-- executar ACK ou NACK conforme necessário.
+- verificar o limite de Retry;
+- publicar mensagens na DLQ;
+- preservar os metadados relevantes da mensagem original;
+- aguardar a confirmação da publicação;
+- executar `ACK` da entrega original somente após a publicação confirmada;
+- registrar logs do encaminhamento para a DLQ.
 
 ---
 
 ## Consumer
 
-Responsável apenas pela lógica de negócio.
+Responsável pela lógica específica de processamento e validação da mensagem.
 
 Não conhecerá:
 
 - DLQ;
 - Retry;
-- TTL;
+- cálculo de backoff;
+- `Expiration`;
 - Exchanges;
-- Filas.
+- Filas;
+- ACK;
+- republicação.
 
 ---
 
 ## RabbitMQ
 
-Responsável por armazenar as mensagens encaminhadas para a Dead Letter Queue.
+Responsável por:
 
+- armazenar as mensagens publicadas na Dead Letter Queue;
+- manter as mensagens isoladas do fluxo principal;
+- preservar as mensagens na DLQ até que exista uma ação operacional de reprocessamento ou remoção.
 ---
 
 # Estratégia Inicial
 
-A primeira versão não realizará reprocessamento automático.
+A primeira versão não realizará reprocessamento automático das mensagens armazenadas na DLQ.
 
-O reenvio será manual após investigação.
+As mensagens permanecerão isoladas até que sejam analisadas.
+
+Quando necessário, o reprocessamento será iniciado manualmente após a investigação da causa da falha.
+
+A definição do procedimento operacional de reprocessamento manual será tratada como evolução posterior e não faz parte da implementação atual.
 
 ---
 
 # Consequências Positivas
 
-- isolamento de mensagens inválidas;
-- preservação de dados;
-- facilidade de auditoria;
-- preparação para ferramentas administrativas.
+- isolamento de mensagens que não puderam ser processadas;
+- preservação da mensagem e de seus metadados relevantes;
+- proteção do fluxo principal contra mensagens problemáticas;
+- facilidade de investigação e diagnóstico;
+- possibilidade de reprocessamento posterior;
+- preparação para ferramentas administrativas e operacionais.
 
 ---
 
 # Consequências Negativas
 
-- aumento da topologia;
-- necessidade de monitoramento;
-- crescimento da quantidade de filas.
+- aumento da complexidade da topologia RabbitMQ;
+- crescimento da quantidade de filas;
+- necessidade de monitoramento da DLQ;
+- necessidade de investigação operacional das mensagens isoladas;
+- necessidade de definir um procedimento seguro para reprocessamento manual;
+- possibilidade de crescimento da DLQ caso as mensagens não sejam tratadas.
 
 ---
 
@@ -314,9 +360,11 @@ O reenvio será manual após investigação.
 
 | Decisão | Benefício | Custo |
 |---|---|---|
-| DLQ dedicada | Melhor isolamento | Mais filas |
-| Reprocessamento manual | Simplicidade | Intervenção operacional |
-| Preservação de headers | Melhor diagnóstico | Maior volume de dados |
+| DLQ dedicada por fila principal | Melhor isolamento e identificação da origem | Maior quantidade de filas |
+| Publicação explícita na DLQ | Controle sobre o destino e confirmação da publicação | Maior responsabilidade da infraestrutura |
+| ACK após publicação confirmada | Reduz o risco de perda da mensagem | Maior complexidade no fluxo de confirmação |
+| Reprocessamento manual | Evita reintrodução automática de mensagens problemáticas | Exige intervenção operacional |
+| Preservação de metadados | Facilita investigação e diagnóstico | Maior volume de informações mantidas |
 
 ---
 
@@ -336,18 +384,20 @@ Nenhum.
 
 ## Infrastructure
 
-Passará a ser responsável por:
+É responsável por:
 
 - configuração da DLQ;
-- publicação de mensagens;
-- encaminhamento;
-- logging.
+- publicação das mensagens destinadas à DLQ;
+- preservação dos metadados relevantes da mensagem original;
+- confirmação da publicação antes do `ACK` da entrega original;
+- encaminhamento de falhas permanentes e mensagens que excederem o limite de Retry;
+- logging do fluxo de envio para a DLQ.
 
 ---
 
 ## Worker.Payments
 
-Continuará responsável apenas pelo processamento da mensagem.
+Continuará responsável pela lógica específica de processamento e validação das mensagens de pagamento.
 
 ---
 
@@ -355,11 +405,13 @@ Continuará responsável apenas pelo processamento da mensagem.
 
 A implementação será considerada concluída quando:
 
-- mensagens permanentes forem encaminhadas para a DLQ;
-- mensagens que excederem o Retry chegarem à DLQ;
-- body e headers forem preservados;
-- nenhuma mensagem permanecer em loop infinito;
-- a mensagem puder ser visualizada no painel do RabbitMQ.
+- falhas permanentes forem publicadas diretamente na DLQ, sem passar pelo Retry;
+- mensagens que excederem o limite máximo de Retry forem publicadas na DLQ;
+- a publicação na DLQ for confirmada antes do `ACK` da entrega original;
+- body, headers e propriedades AMQP relevantes forem preservados;
+- mensagens encaminhadas para a DLQ não retornarem automaticamente ao fluxo principal;
+- as mensagens permanecerem disponíveis para inspeção na Dead Letter Queue;
+- o encaminhamento para a DLQ for registrado em log.
 
 ---
 
@@ -369,7 +421,7 @@ A implementação será considerada concluída quando:
 |---|---|
 | ADR-007 | Infraestrutura RabbitMQ |
 | ADR-012 | Define quando uma mensagem deve seguir para a DLQ |
-| ADR-010 | Inbox Pattern protegerá contra duplicidade |
+| ADR-010 | Inbox Pattern protege contra duplicidade |
 | ADR-011 | Idempotência necessária para reprocessamento |
 
 ---
@@ -388,3 +440,4 @@ A implementação será considerada concluída quando:
 | Data | Alteração |
 |---|---|
 | 02/08/2026 | Criação da ADR-013 definindo a estratégia de Dead Letter Queue do OrderFlow. |
+| 13/09/2026 | Atualização da estratégia de DLQ com publicação explícita, confirmação da publicação antes do ACK, preservação de metadados e tratamento direto de falhas permanentes. |
