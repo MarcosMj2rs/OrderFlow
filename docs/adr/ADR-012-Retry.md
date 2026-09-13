@@ -18,6 +18,11 @@
 | D10 | A confirmação da mensagem continuará utilizando Manual ACK. |
 | D11 | O fluxo seguirá o modelo de entrega At Least Once. |
 | D12 | Os Consumers deverão ser idempotentes, pois uma mensagem poderá ser entregue mais de uma vez. |
+| D13 | A estratégia de Retry evoluirá do intervalo fixo inicial para backoff exponencial. |
+| D14 | O intervalo de Retry será definido por mensagem por meio da propriedade AMQP `Expiration`. |
+| D15 | O backoff inicial utilizará os intervalos de 10, 20 e 40 segundos para as três tentativas configuradas. |
+| D16 | A Retry Queue não utilizará `x-message-ttl` fixo enquanto o intervalo for definido individualmente por mensagem. |
+| D17 | A mensagem original somente será confirmada após a confirmação da republicação para Retry ou DLQ. |
 
 ## Escopo desta ADR
 
@@ -31,7 +36,7 @@ Estão contemplados neste documento:
 - limite máximo de reprocessamentos;
 - controle do número de tentativas;
 - retorno da mensagem à fila principal;
-- encaminhamento para a futura Dead Letter Queue;
+- encaminhamento para a Dead Letter Queue;
 - impacto sobre ACK e NACK.
 
 Não fazem parte do escopo desta ADR:
@@ -232,7 +237,9 @@ Exemplos:
 
 Essas mensagens não deverão retornar à fila principal.
 
-Elas serão rejeitadas sem requeue e, quando a DLQ estiver configurada, encaminhadas diretamente para ela.
+Elas serão publicadas diretamente na Dead Letter Queue, sem passar pelo fluxo de Retry.
+
+A entrega original somente será confirmada após a confirmação da publicação na DLQ.
 
 ---
 
@@ -251,6 +258,22 @@ NACK requeue true
     ↓
 Fila principal
 ```
+
+## Retry Queue com expiração
+```text
+Fila principal
+    ↓
+Consumer
+    ↓
+Erro transitório
+    ↓
+Retry Queue
+    ↓
+Expiração
+    ↓
+Fila principal
+```
+
 
 ### Vantagens
 
@@ -369,7 +392,7 @@ Fila principal
 
 # Decisão
 
-O **OrderFlow** utilizará uma **Retry Queue com TTL** para reprocessar mensagens que apresentarem falhas transitórias.
+O **OrderFlow** utilizará uma **Retry Queue com expiração por mensagem e backoff exponencial** para reprocessar mensagens que apresentarem falhas transitórias.
 
 O Consumer não utilizará mais `requeue: true` como mecanismo padrão para falhas inesperadas.
 
@@ -382,11 +405,16 @@ Consumer
     ↓
 Falha transitória
     ↓
-Publicação na Retry Queue
+Calcula o backoff exponencial
+    ↓
+Publica na Retry Queue
+com Expiration por mensagem
+    ↓
+Confirma a publicação
     ↓
 ACK da mensagem original
     ↓
-TTL expira
+Mensagem expira
     ↓
 Dead Letter Exchange
     ↓
@@ -457,50 +485,72 @@ A[Main Queue]
 
 B -->|Sucesso| C[ACK]
 
-B -->|Falha transitória| D[Retry Publisher]
+B -->|Falha transitória| D[Calcula Backoff]
 
-D --> E[Retry Queue]
+D --> E[Retry Publisher]
 
-E -->|TTL expirado| F[Main Exchange]
+E --> F[Retry Queue]
 
-F --> A
+F -->|Expiration| G[Main Exchange]
 
-B -->|Limite excedido| G[Dead Letter Queue]
+G --> A
 
-B -->|Falha permanente| G
+B -->|Limite excedido| H[DLQ Publisher]
+
+B -->|Falha permanente| H
+
+H --> I[Dead Letter Queue]
 ```
-
 ---
 
-# Estratégia de TTL
+# Estratégia de Backoff Exponencial
 
-A primeira implementação utilizará um intervalo fixo entre tentativas.
+A implementação inicial utilizava um intervalo fixo de 10 segundos entre as tentativas.
 
-Exemplo inicial:
+Durante a evolução do mecanismo de Retry, a estratégia passou a utilizar **backoff exponencial**, aumentando progressivamente o intervalo entre novas tentativas.
 
-```text
-Retry delay: 10 segundos
-```
-
-A fila de Retry será configurada com:
+Com a configuração inicial:
 
 ```text
-x-message-ttl
+RetryBaseDelayMilliseconds = 10000
 ```
 
-Após o vencimento do TTL, a mensagem será encaminhada automaticamente para a exchange principal por meio de:
+os intervalos são calculados da seguinte forma:
+
+```text
+Retry 1 → 10 segundos
+Retry 2 → 20 segundos
+Retry 3 → 40 segundos
+```
+
+O cálculo utilizado é:
+
+```text
+delay = baseDelay × 2^(retryCount - 1)
+```
+
+O atraso não é definido por um `x-message-ttl` fixo na Retry Queue.
+
+Cada mensagem republicada para Retry recebe individualmente a propriedade AMQP:
+
+```text
+Expiration
+```
+
+com o intervalo calculado para aquela tentativa.
+
+A Retry Queue permanece configurada com:
 
 ```text
 x-dead-letter-exchange
-```
-
-e da routing key:
-
-```text
 x-dead-letter-routing-key
 ```
 
-O valor inicial será configurável e poderá ser ajustado durante os testes.
+Quando a mensagem expira, o RabbitMQ realiza o dead lettering para a exchange principal, utilizando a routing key da fila principal.
+
+Dessa forma, o Consumer não permanece bloqueado durante o intervalo entre as tentativas.
+
+> **Limitação conhecida:** a implementação atual utiliza uma única fila clássica de Retry com valores de expiração definidos individualmente por mensagem. Essa abordagem não deve ser considerada uma garantia de temporização independente perfeita quando existirem múltiplas mensagens com diferentes tempos de expiração intercaladas. Estratégias como múltiplas filas de Retry com TTLs distintos permanecem como evolução futura.
 
 ---
 
@@ -552,14 +602,18 @@ A cada nova falha transitória:
 
 1. o Consumer lê o contador atual;
 2. incrementa o valor;
-3. republica a mensagem na fila de Retry;
-4. envia `ACK` para a entrega original.
+3. calcula o intervalo utilizando backoff exponencial;
+4. define a propriedade AMQP `Expiration`;
+5. republica a mensagem na fila de Retry;
+6. aguarda a confirmação da publicação;
+7. envia `ACK` para a entrega original.
 
 Ao atingir o limite:
 
 1. a mensagem não retorna à fila de Retry;
-2. é publicada na DLQ;
-3. a entrega original é confirmada.
+2. é publicada diretamente na DLQ;
+3. a confirmação da publicação é aguardada;
+4. a entrega original recebe `ACK`.
 
 ---
 
@@ -594,8 +648,13 @@ O `ACK` da mensagem original só deverá ocorrer após a confirmação de que a 
 ## Falha permanente
 
 ```text
-BasicNack
-requeue = false
+Falha permanente
+    ↓
+Publica diretamente na DLQ
+    ↓
+Confirma a publicação
+    ↓
+BasicAck na mensagem original
 ```
 
 Com a topologia de DLQ configurada, a mensagem será encaminhada para a fila de mensagens não processáveis.
@@ -635,10 +694,14 @@ Será responsável por:
 - receber a entrega;
 - desserializar a mensagem;
 - executar o processamento;
-- classificar a falha;
-- consultar o número de tentativas;
+- classificar a falha como transitória ou permanente;
+- consultar e atualizar o número de tentativas;
+- calcular o backoff exponencial;
+- definir a propriedade AMQP `Expiration` nas mensagens de Retry;
 - decidir entre Retry e DLQ;
-- executar ACK ou NACK;
+- republicar a mensagem;
+- aguardar a confirmação da republicação;
+- executar `ACK` da entrega original somente após a publicação confirmada;
 - preservar os metadados AMQP;
 - registrar logs do fluxo.
 
@@ -664,7 +727,8 @@ Ele não deverá conhecer detalhes de:
 
 - Channel;
 - fila de Retry;
-- TTL;
+- cálculo de backoff;
+- `Expiration`;
 - headers;
 - ACK;
 - NACK;
@@ -679,7 +743,7 @@ Será responsável por:
 
 - armazenar mensagens;
 - manter a Retry Queue;
-- aplicar TTL;
+- aplicar a expiração individual definida nas mensagens de Retry;
 - encaminhar mensagens após o vencimento;
 - redirecionar mensagens para a fila principal;
 - armazenar mensagens não processáveis na DLQ.
@@ -691,7 +755,10 @@ Será responsável por:
 | Configuração | Valor inicial |
 |---|---:|
 | Número máximo de tentativas | 3 |
-| Intervalo de Retry | 10 segundos |
+| Delay base | 10 segundos |
+| Estratégia de intervalo | Backoff exponencial |
+| Intervalos resultantes | 10s / 20s / 40s |
+| Controle do atraso | `Expiration` por mensagem |
 | Prefetch Count | 1 |
 | Confirmação | Manual ACK |
 | Entrega | At Least Once |
@@ -734,7 +801,7 @@ Esses valores poderão ser ajustados após testes de carga e observação do com
 | Decisão | Benefício | Custo |
 |---|---|---|
 | Retry Queue | Espera sem bloquear o Consumer | Topologia adicional |
-| TTL fixo | Simplicidade inicial | Menor flexibilidade |
+| Backoff exponencial | Aumenta progressivamente o intervalo entre falhas recorrentes | Maior complexidade no cálculo e controle dos atrasos |
 | Limite de tentativas | Evita loops infinitos | Mensagens podem chegar à DLQ |
 | Header de tentativas | Controle explícito | Republicação mais complexa |
 | ACK após republicação | Reduz risco de perda | Maior cuidado transacional |
@@ -766,12 +833,13 @@ A camada continuará desconhecendo detalhes da estratégia de reprocessamento.
 Passará a ser responsável por:
 
 - configuração da fila de Retry;
-- configuração de TTL;
+- cálculo do backoff exponencial;
+- definição da propriedade AMQP `Expiration` por mensagem de Retry;
 - configuração de dead lettering;
 - leitura e escrita do contador de tentativas;
 - republicação de mensagens;
 - decisão entre Retry e DLQ;
-- ACK e NACK controlados.
+- confirmação da republicação antes do `ACK` da entrega original.
 
 ---
 
@@ -799,7 +867,6 @@ orderflow.order-created.dlq
 
 Os seguintes assuntos não serão tratados nesta ADR:
 
-- Retry exponencial;
 - múltiplas filas com diferentes TTLs;
 - jitter;
 - reprocessamento manual da DLQ;
@@ -841,11 +908,14 @@ A mensagem não deve passar pela fila de Retry.
 ```text
 Mensagem
     ↓
-Erro
+Erro transitório
+    ↓
+Calcula backoff
     ↓
 Retry Queue
+com Expiration
     ↓
-TTL
+Mensagem expira
     ↓
 Fila principal
     ↓
@@ -863,11 +933,11 @@ A mensagem deverá ser processada após nova tentativa.
 ```text
 Mensagem
     ↓
-Retry 1
+Retry 1 - 10s
     ↓
-Retry 2
+Retry 2 - 20s
     ↓
-Retry 3
+Retry 3 - 40s
     ↓
 DLQ
 ```
@@ -879,11 +949,13 @@ A mensagem não deverá retornar indefinidamente à fila principal.
 ## Falha permanente
 
 ```text
-Payload inválido
+Falha permanente
     ↓
-Sem Retry
+Publica diretamente na DLQ
     ↓
-DLQ
+Confirma a publicação
+    ↓
+BasicAck na mensagem original
 ```
 
 A mensagem deverá ser isolada imediatamente.
@@ -892,7 +964,7 @@ A mensagem deverá ser isolada imediatamente.
 
 ## Reinício do Worker
 
-Se o Worker for reiniciado durante o período de Retry, a mensagem deverá permanecer armazenada no RabbitMQ e retornar ao fluxo após o vencimento do TTL.
+Se o Worker for reiniciado durante o período de Retry, a mensagem deverá permanecer armazenada no RabbitMQ e retornar ao fluxo após o vencimento da expiração definida para a mensagem.
 
 ---
 
@@ -925,7 +997,9 @@ Se o Worker for reiniciado durante o período de Retry, a mensagem deverá perma
 |---|---|
 | Retry | Nova tentativa de processamento após uma falha. |
 | Retry Queue | Fila intermediária que mantém mensagens durante o intervalo entre tentativas. |
-| TTL | Tempo durante o qual a mensagem permanece na fila de Retry. |
+| TTL | Time-To-Live utilizado pelo RabbitMQ para determinar a expiração de mensagens. |
+| Expiration | Propriedade AMQP utilizada pelo OrderFlow para definir individualmente o tempo de expiração de uma mensagem de Retry. |
+| Backoff exponencial | Estratégia que aumenta progressivamente o intervalo entre tentativas sucessivas. |
 | DLX | Exchange utilizada para encaminhar mensagens rejeitadas ou expiradas. |
 | DLQ | Fila destinada a mensagens que não puderam ser processadas. |
 | Poison Message | Mensagem que falha repetidamente e não pode ser processada normalmente. |
@@ -941,3 +1015,4 @@ Se o Worker for reiniciado durante o período de Retry, a mensagem deverá perma
 | Data | Alteração |
 |---|---|
 | 02/08/2026 | Criação da ADR-012 e definição da estratégia de Retry controlado com fila intermediária, TTL e limite de tentativas. |
+| 13/09/2026 | Evolução da estratégia de Retry para backoff exponencial com intervalos de 10s, 20s e 40s, utilizando `Expiration` por mensagem. |
