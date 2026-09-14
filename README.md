@@ -14,9 +14,10 @@ Mais do que um CRUD, o OrderFlow busca demonstrar **como construir software esca
 
 O projeto evolui de forma incremental. Cada capítulo introduz novos conceitos arquiteturais, mantendo o código, a documentação e o histórico de commits sincronizados durante toda a evolução da solução.
 
-Atualmente o projeto já possui uma arquitetura distribuída funcional baseada em **RabbitMQ**, incluindo **Retry**, **Dead Letter Queue (DLQ)**, **Background Workers** e **Transactional Outbox**.
+Atualmente o projeto já possui uma arquitetura distribuída funcional baseada em **RabbitMQ**, incluindo **Transactional Outbox**, **Inbox Pattern**, **Idempotência**, **Retry**, **Dead Letter Queue (DLQ)** e **Background Workers**.
 
-Os próximos capítulos concentrarão esforços na implementação do **Inbox Pattern**, **Idempotência**, **Saga**, **Observabilidade** e demais padrões utilizados em sistemas distribuídos corporativos.
+Os próximos capítulos concentrarão esforços na implementação de **Saga**, **Consistência Eventual**, **Versionamento de Eventos**, **Observabilidade** e demais padrões utilizados em sistemas distribuídos corporativos.
+
 ---
 
 # 🎯 Objetivos
@@ -64,20 +65,16 @@ O projeto segue os princípios da **Clean Architecture**, mantendo as dependênc
 
 ```text
 Client (Swagger)
-
         │
         ▼
-
 OrderFlow.Api
     │
     ├── Controllers
     ├── Contracts
     ├── AutoMapper
     └── API Versioning
-
         │
         ▼
-
 Application
     │
     ├── Commands
@@ -85,36 +82,33 @@ Application
     ├── Handlers
     ├── Validators
     └── Behaviors
-
         │
         ▼
-
 Domain
     │
     ├── Aggregate Root
     ├── Entities
     ├── Domain Events
     └── Business Rules
-
         │
         ▼
-
 Infrastructure
     │
     ├── EF Core
     ├── SQL Server
     ├── UnitOfWork
     ├── Transactional Outbox
+    ├── Inbox
     ├── RabbitMQ
     └── Persistence
-
         │
         ▼
-
 SQL Server
     │
     ├── Orders
     ├── OrderItems
+    ├── Payments
+    ├── InboxMessages
     └── OutboxMessages
             │
             ▼
@@ -130,7 +124,7 @@ OrderFlow.Worker.Payments
 Cada camada possui responsabilidades bem definidas.
 
 | Camada | Responsabilidade |
-|---------|------------------|
+|--------|------------------|
 | Domain | Regras de negócio |
 | Application | Casos de uso |
 | Infrastructure | Persistência e integrações |
@@ -165,6 +159,7 @@ OrderFlow
     ├── images
     └── Glossario.md
 ```
+
 ---
 
 # 📚 Documentação
@@ -172,7 +167,7 @@ OrderFlow
 Toda a documentação do projeto está organizada na pasta **docs**.
 
 | Pasta | Descrição |
-|--------|-----------|
+|-------|-----------|
 | concepts | Conceitos utilizados durante o desenvolvimento |
 | adr | Architecture Decision Records (ADRs) |
 | decisions | Comparativos e justificativas técnicas |
@@ -196,10 +191,13 @@ O desenvolvimento do OrderFlow foi dividido em capítulos, permitindo acompanhar
 | Capítulo 7 — Background Workers | ✅ |
 | Capítulo 8 — WebApi | ✅ |
 | Capítulo 9 — Transactional Outbox | ✅ |
-| Capítulo 10 — Inbox Pattern | ⏳ |
-| Capítulo 11 — Idempotência | ⏳ |
-| Capítulo 12 — Saga | ⏳ |
-| Capítulo 13 — Observabilidade | ⏳ |
+| Capítulo 10 — Inbox Pattern | ✅ |
+| Capítulo 11 — Idempotência | ✅ |
+| Capítulo 12 — Retry | ✅ |
+| Capítulo 13 — Dead Letter Queue (DLQ) | ✅ |
+| Capítulo 14 — Saga | ⏳ |
+| Capítulo 15 — Observabilidade | ⏳ |
+
 ---
 
 # 📊 Estado Atual do Projeto
@@ -288,8 +286,8 @@ O desenvolvimento do OrderFlow foi dividido em capítulos, permitindo acompanhar
 | Retry | ✅ |
 | Dead Letter Queue (DLQ) | ✅ |
 | Transactional Outbox | ✅ |
-| Inbox Pattern | ⏳ |
-| Idempotência | ⏳ |
+| Inbox Pattern | ✅ |
+| Idempotência | ✅ |
 
 ---
 
@@ -302,8 +300,8 @@ O desenvolvimento do OrderFlow foi dividido em capítulos, permitindo acompanhar
 | At Least Once Delivery | ✅ |
 | Retry | ✅ |
 | Dead Letter Queue (DLQ) | ✅ |
-| Inbox Pattern | ⏳ |
-| Idempotência | ⏳ |
+| Inbox Pattern | ✅ |
+| Idempotência | ✅ |
 | Saga | ⏳ |
 | Consistência Eventual | ⏳ |
 | Versionamento de Eventos | ⏳ |
@@ -366,8 +364,6 @@ O desenvolvimento do OrderFlow foi dividido em capítulos, permitindo acompanhar
 - Nack
 - Reject
 - Prefetch
-- Retry
-- Dead Letter Queue
 
 ## ✅ Capítulo 8 — WebApi
 
@@ -389,7 +385,7 @@ O desenvolvimento do OrderFlow foi dividido em capítulos, permitindo acompanhar
 - Recuperação automática
 - Validação dos cenários de resiliência
 
-## ⏳ Capítulo 10 — Inbox Pattern
+## ✅ Capítulo 10 — Inbox Pattern
 
 - InboxMessage
 - InboxRepository
@@ -397,14 +393,37 @@ O desenvolvimento do OrderFlow foi dividido em capítulos, permitindo acompanhar
 - Controle de mensagens processadas
 - Idempotência no consumo
 
-## ⏳ Capítulo 11 — Idempotência
+## ✅ Capítulo 11 — Idempotência
 
-- Idempotência da API
 - Idempotência dos Consumers
 - Chaves de idempotência
 - Estratégias de deduplicação
+- Idempotência de negócio
+- Proteção contra concorrência
 
-## ⏳ Capítulo 12 — Saga
+## ✅ Capítulo 12 — Retry
+
+- Classificação de falhas transitórias
+- Retry Count
+- Exponential Backoff
+- Retry Queue
+- Expiration por mensagem
+- Limite máximo de tentativas
+- Publisher Confirm antes do ACK
+- Validação dos cenários de Retry
+
+## ✅ Capítulo 13 — Dead Letter Queue (DLQ)
+
+- Classificação de falhas permanentes
+- Encaminhamento direto para DLQ
+- Encaminhamento após esgotamento do Retry
+- Preservação do payload e metadados
+- Retry Count
+- Isolamento das mensagens
+- Publisher Confirm antes do ACK
+- Validação dos cenários de DLQ
+
+## ⏳ Capítulo 14 — Saga
 
 - Saga Orquestrada
 - Saga Coreografada
@@ -412,66 +431,11 @@ O desenvolvimento do OrderFlow foi dividido em capítulos, permitindo acompanhar
 - Consistência Eventual
 - Versionamento de Eventos
 
-## ⏳ Capítulo 13 — Observabilidade
+## ⏳ Capítulo 15 — Observabilidade
 
 - Logs estruturados
 - Métricas
 - OpenTelemetry
-- Distributed Tracing
-
-## Capítulo 6 — RabbitMQ
-
-- Fundamentos de mensageria
-- Connection
-- Channel
-- Exchange
-- Queue
-- Binding
-- Routing Key
-- Publisher
-- Publisher Confirm
-
-## Capítulo 7 — Background Workers
-
-- Consumer
-- Ack
-- Nack
-- Reject
-- Prefetch
-- Retry
-- Dead Letter Queue
-
-## Capítulo 8 — WebApi
-
-- Controllers
-- Middlewares
-- Swagger
-- Tratamento global de exceções
-
-## Capítulo 9
-
-- Outbox Pattern
-
-## Capítulo 10
-
-- Inbox Pattern
-
-## Capítulo 11
-
-- Idempotência
-
-## Capítulo 12
-
-- Saga
-- Consistência Eventual
-- Versionamento de Eventos
-
-## Capítulo 13
-
-- Observabilidade
-- OpenTelemetry
-- Logs estruturados
-- Métricas
 - Distributed Tracing
 
 ---
@@ -480,11 +444,9 @@ O desenvolvimento do OrderFlow foi dividido em capítulos, permitindo acompanhar
 
 > Em evolução.
 
-A camada **Infrastructure** já se encontra implementada, incluindo Entity Framework Core, SQL Server, Migrations e User Secrets.
+A solução já possui uma arquitetura distribuída funcional utilizando SQL Server, RabbitMQ, Transactional Outbox, Inbox Pattern, Idempotência, Retry e Dead Letter Queue.
 
-A documentação completa de execução será disponibilizada após a implementação da **WebApi**, permitindo a utilização dos endpoints da aplicação.
-
-Todas as demais seções permanecem inalteradas.
+A documentação de execução continuará sendo atualizada conforme a evolução dos próximos capítulos.
 
 ---
 
