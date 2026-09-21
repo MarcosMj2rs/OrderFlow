@@ -15,7 +15,6 @@
     <Folder Include="Common\" />
     <Folder Include="Extensions\" />
     <Folder Include="Features\Mappings\" />
-    <Folder Include="Features\Sagas\Order\Commands\HandleInventoryReserved\" />
   </ItemGroup>
 
   <PropertyGroup>
