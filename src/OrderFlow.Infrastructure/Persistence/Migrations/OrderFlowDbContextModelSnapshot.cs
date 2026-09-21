@@ -22,6 +22,30 @@ namespace OrderFlow.Infrastructure.Persistence.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("OrderFlow.Domain.Entities.InventoryReservation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_InventoryReservations_OrderId");
+
+                    b.ToTable("InventoryReservations", (string)null);
+                });
+
             modelBuilder.Entity("OrderFlow.Domain.Entities.Order", b =>
                 {
                     b.Property<Guid>("Id")
@@ -76,6 +100,33 @@ namespace OrderFlow.Infrastructure.Persistence.Migrations
                     b.ToTable("OrderItems", (string)null);
                 });
 
+            modelBuilder.Entity("OrderFlow.Domain.Entities.OrderSaga", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_OrderSagas_OrderId");
+
+                    b.ToTable("OrderSagas", (string)null);
+                });
+
             modelBuilder.Entity("OrderFlow.Domain.Entities.Payment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -90,6 +141,9 @@ namespace OrderFlow.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 

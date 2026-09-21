@@ -8,9 +8,17 @@ namespace OrderFlow.Infrastructure.Persistence.Context;
 public sealed class OrderFlowDbContext : DbContext
 {
     public DbSet<Order> Orders => Set<Order>();
+
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+
     public DbSet<InboxMessage> InboxMessages => Set<InboxMessage>();
+
     public DbSet<Payment> Payments => Set<Payment>();
+
+    public DbSet<InventoryReservation> InventoryReservations => Set<InventoryReservation>();
+
+    public DbSet<OrderSaga> OrderSagas => Set<OrderSaga>();
+
     public OrderFlowDbContext(DbContextOptions<OrderFlowDbContext> options) : base(options) { }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

@@ -9,7 +9,9 @@ public sealed class OutboxEventTypeRegistry : IOutboxEventTypeRegistry
         {
             [nameof(OrderCreatedDomainEvent)] = typeof(OrderCreatedDomainEvent),
             [nameof(OrderCancelledDomainEvent)] = typeof(OrderCancelledDomainEvent),
-            [nameof(OrderPaidDomainEvent)] = typeof(OrderPaidDomainEvent)
+            [nameof(OrderPaidDomainEvent)] = typeof(OrderPaidDomainEvent),
+            [nameof(PaymentCompletedDomainEvent)] = typeof(PaymentCompletedDomainEvent),
+            [nameof(InventoryReservedDomainEvent)] = typeof(InventoryReservedDomainEvent)
         };
 
     public Type Resolve(string eventTypeName)

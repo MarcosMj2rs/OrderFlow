@@ -1,6 +1,6 @@
 ﻿using MediatR;
 using Microsoft.Extensions.Options;
-using OrderFlow.Application.Features.Payments.Commands.ProcessPayment;
+using OrderFlow.Application.Features.Sagas.Order.Commands.StartOrderSaga;
 using OrderFlow.Infrastructure.Messaging.Consumers;
 using OrderFlow.Infrastructure.Messaging.Exceptions;
 using OrderFlow.Infrastructure.Messaging.RabbitMQ.Configuration;
@@ -62,9 +62,7 @@ public sealed class OrderCreatedConsumer : RabbitMqConsumerBase<OrderCreatedMess
                                          message.CustomerId,
                                          message.TotalAmount);
 
-                await sender.Send(new ProcessPaymentCommand(message.OrderId,
-                                                            message.TotalAmount),
-                                 ct);
+                await sender.Send(new StartOrderSagaCommand(message.OrderId), ct);
             },
             cancellationToken);
 

@@ -8,7 +8,9 @@ public sealed class RabbitMqRoutingKeyResolver : IRabbitMqRoutingKeyResolver
     {
         [typeof(OrderCreatedDomainEvent)] = "order.created",
         [typeof(OrderCancelledDomainEvent)] = "order.cancelled",
-        [typeof(OrderPaidDomainEvent)] = "order.paid"
+        [typeof(OrderPaidDomainEvent)] = "order.paid",
+        [typeof(PaymentCompletedDomainEvent)] = "payment.completed",
+        [typeof(InventoryReservedDomainEvent)] = "inventory.reserved"
     };
 
     public string Resolve(IDomainEvent domainEvent)

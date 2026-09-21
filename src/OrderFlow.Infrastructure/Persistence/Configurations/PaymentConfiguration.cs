@@ -23,6 +23,10 @@ public sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
                .HasColumnType("datetime2")
                .IsRequired();
 
+        builder.Property(x => x.Status)
+               .HasConversion<int>()
+               .IsRequired();
+
         builder.HasIndex(x => x.OrderId)
                .IsUnique()
                .HasDatabaseName("UX_Payments_OrderId");

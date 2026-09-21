@@ -7,4 +7,6 @@ public interface IPaymentRepository
     Task<bool> ExistsByOrderIdAsync(Guid orderId, CancellationToken cancellationToken = default);
 
     Task AddAsync(Payment payment, CancellationToken cancellationToken = default);
+
+    Task<Payment?> GetByOrderIdAsync(Guid orderId, CancellationToken cancellationToken = default);
 }

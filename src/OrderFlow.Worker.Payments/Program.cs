@@ -17,6 +17,13 @@ builder.Services.AddRabbitMqConfiguration(builder.Configuration);
 
 builder.Services.AddSingleton<OrderCreatedConsumer>();
 builder.Services.AddHostedService<OrderCreatedConsumerHostedService>();
+
+builder.Services.AddSingleton<PaymentCompletedConsumer>();
+builder.Services.AddHostedService<PaymentCompletedConsumerHostedService>();
+
+builder.Services.AddSingleton<InventoryReservedConsumer>();
+builder.Services.AddHostedService<InventoryReservedConsumerHostedService>();
+
 builder.Services.AddMediatR(config =>
 {
     config.RegisterServicesFromAssembly(typeof(ProcessPaymentCommandHandler).Assembly);

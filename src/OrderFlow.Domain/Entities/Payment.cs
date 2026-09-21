@@ -1,4 +1,6 @@
 ﻿using OrderFlow.Domain.Abstractions;
+using OrderFlow.Domain.Enumerations;
+using OrderFlow.Domain.Events;
 using OrderFlow.Domain.Exceptions;
 
 namespace OrderFlow.Domain.Entities;
@@ -10,6 +12,8 @@ public sealed class Payment : Entity
     public decimal Amount { get; private set; }
 
     public DateTime CreatedAt { get; private set; }
+
+    public EPaymentStatus Status { get; private set; }
 
     private Payment() { }
 
@@ -24,5 +28,16 @@ public sealed class Payment : Entity
         OrderId = orderId;
         Amount = amount;
         CreatedAt = DateTime.UtcNow;
+        Status = EPaymentStatus.COMPLETED;
+
+        RaiseDomainEvent(new PaymentCompletedDomainEvent(OrderId, Id));
+    }
+
+    public void Refund()
+    {
+        if (Status != EPaymentStatus.COMPLETED)
+            throw new DomainException("Only completed payments can be refunded.");
+
+        Status = EPaymentStatus.REFUNDED;
     }
 }

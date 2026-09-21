@@ -3,6 +3,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OrderFlow.Application.Abstractions.Persistence;
+using OrderFlow.Application.Abstractions.Sagas;
+using OrderFlow.Application.Sagas.Order;
 using OrderFlow.Domain.Repositories;
 using OrderFlow.Infrastructure.Persistence.Context;
 using OrderFlow.Infrastructure.Persistence.DomainEvents;
@@ -66,7 +68,10 @@ public static class PersistenceDependencyInjection
 
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<IPaymentRepository, PaymentRepository>();
+        services.AddScoped<IInventoryReservationRepository, InventoryReservationRepository>();
+        services.AddScoped<IOrderSagaRepository, OrderSagaRepository>();
         services.AddScoped<IOrderReadRepository, OrderReadRepository>();
+        services.AddScoped<IOrderSagaOrchestrator, OrderSagaOrchestrator>();
         services.AddScoped<IOutboxRepository, OutboxRepository>();
         services.AddScoped<IInboxRepository, InboxRepository>();
         services.AddScoped<IInboxProcessor, InboxProcessor>();

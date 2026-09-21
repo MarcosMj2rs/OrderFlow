@@ -19,6 +19,11 @@ public sealed class PaymentRepository : IPaymentRepository
         return _dbContext.Payments.AnyAsync(payment => payment.OrderId == orderId, cancellationToken);
     }
 
+    public async Task<Payment?> GetByOrderIdAsync(Guid orderId, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Payments.FirstOrDefaultAsync(payment => payment.OrderId == orderId, cancellationToken);
+    }
+
     public async Task AddAsync(Payment payment, CancellationToken cancellationToken = default)
     {
         await _dbContext.Payments.AddAsync(payment, cancellationToken);
