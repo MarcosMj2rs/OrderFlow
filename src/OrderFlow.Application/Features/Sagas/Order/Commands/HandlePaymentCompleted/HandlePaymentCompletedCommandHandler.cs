@@ -1,6 +1,7 @@
 ﻿using MediatR;
 using OrderFlow.Application.Abstractions.Persistence;
 using OrderFlow.Application.Features.Inventory.Commands.ReserveInventory;
+using OrderFlow.Domain.Enumerations;
 using OrderFlow.Domain.Exceptions;
 using OrderFlow.Domain.Repositories;
 
@@ -26,9 +27,15 @@ public sealed class HandlePaymentCompletedCommandHandler : IRequestHandler<Handl
         if (orderSaga is null)
             throw new DomainException($"Order saga for order '{request.OrderId}' was not found.");
 
-        orderSaga.MarkPaymentCompleted();
+        if (orderSaga.Status == EOrderSagaStatus.STARTED)
+        {
+            orderSaga.MarkPaymentCompleted();
 
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+
+        if (orderSaga.Status != EOrderSagaStatus.PAYMENT_COMPLETED)
+            throw new DomainException($"Order saga '{request.OrderId}' cannot process payment completion from status '{orderSaga.Status}'.");
 
         await _sender.Send(new ReserveInventoryCommand(request.OrderId), cancellationToken);
     }

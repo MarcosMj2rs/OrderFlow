@@ -23,6 +23,7 @@
     <Folder Include="Messaging\Exchanges\" />
     <Folder Include="Messaging\Publishers\" />
     <Folder Include="Messaging\Queues\" />
+    <Folder Include="Messaging\RabbitMQ\HostedServices\" />
   </ItemGroup>
 
   <PropertyGroup>

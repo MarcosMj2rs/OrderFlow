@@ -1,5 +1,6 @@
 ﻿using MediatR;
 using OrderFlow.Application.Abstractions.Persistence;
+using OrderFlow.Domain.Enumerations;
 using OrderFlow.Domain.Exceptions;
 using OrderFlow.Domain.Repositories;
 
@@ -22,6 +23,9 @@ public sealed class PayOrderCommandHandler : IRequestHandler<PayOrderCommand>
 
         if (order is null)
             throw new DomainException("Order not found.");
+
+        if (order.Status == OrderStatus.PAID)
+            return;
 
         order.Pay();
 

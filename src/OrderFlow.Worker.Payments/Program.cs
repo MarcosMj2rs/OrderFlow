@@ -1,19 +1,22 @@
+using OrderFlow.Application.DependencyInjection;
+using OrderFlow.Infrastructure.DependencyInjection;
 using OrderFlow.Infrastructure.Messaging.RabbitMQ.Configuration;
 using OrderFlow.Worker.Payments.Consumers;
 using OrderFlow.Worker.Payments.HostedServices;
-using OrderFlow.Infrastructure.DependencyInjection;
-using OrderFlow.Application.Features.Payments.Commands.ProcessPayment;
 
 var builder = Host.CreateApplicationBuilder(args);
 
-builder.Services.AddPersistence(
-    builder.Configuration,
+builder.Services.AddApplication();
+
+builder.Services.AddPersistence(builder.Configuration,
     new InfrastructureOptions
     {
         EnableEfCoreLogging = builder.Environment.IsDevelopment()
     });
 
 builder.Services.AddRabbitMqConfiguration(builder.Configuration);
+
+builder.Services.AddHostedService<RabbitMqTopologyHostedService>();
 
 builder.Services.AddSingleton<OrderCreatedConsumer>();
 builder.Services.AddHostedService<OrderCreatedConsumerHostedService>();
@@ -23,11 +26,6 @@ builder.Services.AddHostedService<PaymentCompletedConsumerHostedService>();
 
 builder.Services.AddSingleton<InventoryReservedConsumer>();
 builder.Services.AddHostedService<InventoryReservedConsumerHostedService>();
-
-builder.Services.AddMediatR(config =>
-{
-    config.RegisterServicesFromAssembly(typeof(ProcessPaymentCommandHandler).Assembly);
-});
 
 var host = builder.Build();
 
