@@ -14,9 +14,9 @@ Mais do que um CRUD, o OrderFlow busca demonstrar **como construir software esca
 
 O projeto evolui de forma incremental. Cada capítulo introduz novos conceitos arquiteturais, mantendo o código, a documentação e o histórico de commits sincronizados durante toda a evolução da solução.
 
-Atualmente o projeto já possui uma arquitetura distribuída funcional baseada em **RabbitMQ**, incluindo **Transactional Outbox**, **Inbox Pattern**, **Idempotência**, **Retry**, **Dead Letter Queue (DLQ)** e **Background Workers**.
+Atualmente o projeto já possui uma arquitetura distribuída funcional baseada em **RabbitMQ**, incluindo **Transactional Outbox**, **Inbox Pattern**, **Idempotência**, **Retry**, **Dead Letter Queue (DLQ)**, **Background Workers** e o fluxo de sucesso de uma **Saga Orquestrada** para pedidos, pagamentos e reservas de estoque. O estado da Saga é persistido e foram validados cenários de recuperação e reprocessamento idempotente.
 
-Os próximos capítulos concentrarão esforços na implementação de **Saga**, **Consistência Eventual**, **Versionamento de Eventos**, **Observabilidade** e demais padrões utilizados em sistemas distribuídos corporativos.
+A próxima evolução da Saga será a implementação de **compensações de negócio** (estorno de pagamento e liberação de reserva de estoque). **Versionamento de Eventos**, **Observabilidade** e outras melhorias continuam no roadmap.
 
 ---
 
@@ -81,7 +81,8 @@ Application
     ├── Queries
     ├── Handlers
     ├── Validators
-    └── Behaviors
+    ├── Behaviors
+    └── Orquestração da Saga
         │
         ▼
 Domain
@@ -108,6 +109,7 @@ SQL Server
     ├── Orders
     ├── OrderItems
     ├── Payments
+    ├── OrderSaga (estado da Saga)
     ├── InboxMessages
     └── OutboxMessages
             │
@@ -118,8 +120,10 @@ OrderFlow.Worker.Outbox
 RabbitMQ
             │
             ▼
-OrderFlow.Worker.Payments
+Consumers / processamento de pagamentos e reservas de estoque
 ```
+
+O diagrama é uma visão simplificada dos componentes e do fluxo de mensageria; não representa todas as dependências ou transações. A Saga coordena as etapas de pagamento e reserva de estoque, persistindo seu progresso para permitir recuperação.
 
 Cada camada possui responsabilidades bem definidas.
 
@@ -195,7 +199,7 @@ O desenvolvimento do OrderFlow foi dividido em capítulos, permitindo acompanhar
 | Capítulo 11 — Idempotência | ✅ |
 | Capítulo 12 — Retry | ✅ |
 | Capítulo 13 — Dead Letter Queue (DLQ) | ✅ |
-| Capítulo 14 — Saga | ⏳ |
+| Capítulo 14 — Saga (fluxo de sucesso, recuperação e idempotência concluídos; compensações pendentes) | ⏳ |
 | Capítulo 15 — Observabilidade | ⏳ |
 
 ---
@@ -302,7 +306,10 @@ O desenvolvimento do OrderFlow foi dividido em capítulos, permitindo acompanhar
 | Dead Letter Queue (DLQ) | ✅ |
 | Inbox Pattern | ✅ |
 | Idempotência | ✅ |
-| Saga | ⏳ |
+| Saga orquestrada — fluxo de sucesso | ✅ |
+| Persistência e recuperação do estado da Saga | ✅ |
+| Idempotência no processamento da Saga | ✅ |
+| Compensações de negócio da Saga | ⏳ |
 | Consistência Eventual | ⏳ |
 | Versionamento de Eventos | ⏳ |
 
@@ -425,11 +432,25 @@ O desenvolvimento do OrderFlow foi dividido em capítulos, permitindo acompanhar
 
 ## ⏳ Capítulo 14 — Saga
 
-- Saga Orquestrada
-- Saga Coreografada
-- Compensações
-- Consistência Eventual
-- Versionamento de Eventos
+**Implementado e validado:**
+
+- Saga orquestrada para o fluxo de sucesso do pedido, pagamento e reserva de estoque.
+- Persistência das transições de estado da Saga em `OrderSaga`.
+- Idempotência sequencial no processamento de pagamento e reserva de estoque.
+- Recuperação após persistir `PAYMENT_COMPLETED`, `INVENTORY_RESERVED` e o estado `PAID` do pedido antes de concluir a Saga.
+- Validação de emissão única de `OrderPaidDomainEvent` no cenário de recuperação testado.
+- Reprocessamento de mensagens Inbox de `FAILED` para `PROCESSED`.
+- Inicialização da topologia RabbitMQ pelo `RabbitMqTopologyHostedService`.
+
+**Próximas etapas:**
+
+- Implementar compensação de pagamento (estorno).
+- Implementar compensação de estoque (liberação da reserva).
+- Validar os cenários de falha de negócio e compensação.
+
+A **Saga coreografada** foi considerada como alternativa arquitetural, mas não foi implementada. A Saga oferece coordenação de operações com **consistência eventual**; não equivale a uma transação distribuída atômica. A recuperação técnica via Retry/Inbox não substitui compensações de negócio.
+
+**Documentação:** [Conceito de Saga](docs/concepts/13-Saga.md) · [ADR-017 — Saga Pattern](docs/adr/ADR-017-Saga-Pattern.md)
 
 ## ⏳ Capítulo 15 — Observabilidade
 
@@ -444,7 +465,7 @@ O desenvolvimento do OrderFlow foi dividido em capítulos, permitindo acompanhar
 
 > Em evolução.
 
-A solução já possui uma arquitetura distribuída funcional utilizando SQL Server, RabbitMQ, Transactional Outbox, Inbox Pattern, Idempotência, Retry e Dead Letter Queue.
+A solução já possui uma arquitetura distribuída funcional utilizando SQL Server, RabbitMQ, Transactional Outbox, Inbox Pattern, Idempotência, Retry, Dead Letter Queue e uma Saga orquestrada com fluxo de sucesso e recuperação validados. As compensações da Saga ainda estão pendentes.
 
 A documentação de execução continuará sendo atualizada conforme a evolução dos próximos capítulos.
 

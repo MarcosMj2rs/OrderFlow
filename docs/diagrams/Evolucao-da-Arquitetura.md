@@ -1,379 +1,326 @@
-# Evolução da Arquitetura
+# Evolução da Arquitetura — OrderFlow
 
-Este documento apresenta a evolução arquitetural do **OrderFlow**,
-demonstrando como a solução é construída de forma incremental ao longo
-dos capítulos.
+## Visão geral
 
-Cada etapa consolida uma parte da arquitetura antes da introdução de
-novos conceitos, mantendo a aplicação aderente aos princípios da **Clean
-Architecture**, **Domain-Driven Design (DDD)** e **CQRS**.
+O **OrderFlow** é um laboratório de arquitetura de software em **.NET 10**, desenvolvido incrementalmente para estudar e validar padrões de aplicações distribuídas. Este documento registra as entregas arquiteturais e diferencia funcionalidades implementadas de evoluções planejadas.
 
-------------------------------------------------------------------------
+> **Nota sobre a numeração:** o histórico original deste documento utiliza uma sequência de capítulos diferente daquela apresentada no `README.md`, especialmente para WebApi, Workers e Outbox. A visão de progresso abaixo utiliza a numeração atual do README, preservando os componentes técnicos documentados.
 
-# Capítulo 1 --- Estrutura da Solution
+---
 
-Foi criada a estrutura inicial da solução.
+## Capítulos 1 e 2 — Estrutura da Solution e Domain Model
 
-``` text
-src
-tests
-docs
-```
+A solução foi estruturada seguindo os princípios da **Clean Architecture**, com separação entre Domain, Application, Infrastructure, API e processos de execução independentes.
 
-**Objetivos**
+Foi construída a camada **Domain**, com:
 
--   organização da solução;
--   separação entre camadas;
--   preparação para evolução incremental.
+- Aggregate Root `Order`;
+- entidade `OrderItem`;
+- Domain Exceptions;
+- abstrações de repositórios;
+- invariantes e regras de negócio;
+- testes unitários.
 
-**Status:** ✅ Concluído
+**Status:** Concluído.
 
-------------------------------------------------------------------------
+---
 
-# Capítulo 2 --- Domain Model
+## Capítulo 3 — Domain Events
 
-Foi construída toda a camada **Domain**.
+Foram introduzidos os eventos de domínio:
 
-**Principais entregas**
+- `OrderCreatedDomainEvent`;
+- `OrderCancelledDomainEvent`;
+- `OrderPaidDomainEvent`.
 
--   Aggregate Root (`Order`);
--   Entity (`OrderItem`);
--   Domain Exceptions;
--   Repositórios do domínio;
--   Invariantes;
--   Testes unitários.
+A classe base `Entity` oferece suporte ao gerenciamento dos Domain Events.
 
-**Status:** ✅ Concluído
+**Status:** Concluído.
 
-------------------------------------------------------------------------
+---
 
-# Capítulo 3 --- Domain Events
+## Capítulo 4 — Application (CQRS)
 
-Introdução dos eventos de domínio.
+A camada **Application** foi construída utilizando **CQRS**, **MediatR** e **FluentValidation**.
 
-**Eventos implementados**
+| Categoria | Componentes |
+|---|---|
+| Commands | `CreateOrder`, `CancelOrder`, `PayOrder` |
+| Queries | `GetOrderById`, `GetOrders` |
+| Behavior implementado | `ValidationBehavior` |
+| Abstrações | `IUnitOfWork`, `IOrderRepository`, `IOrderReadRepository` |
+| Organização | Vertical Slice Architecture |
 
--   OrderCreatedDomainEvent;
--   OrderCancelledDomainEvent;
--   OrderPaidDomainEvent.
+**Status:** Concluído para o escopo registrado.
 
-Também foi criada a infraestrutura para gerenciamento de Domain Events
-através da classe base `Entity`.
+---
 
-**Status:** ✅ Concluído
+## Capítulo 5 — Infrastructure
 
-------------------------------------------------------------------------
+A infraestrutura de persistência foi implementada com **Entity Framework Core** e **SQL Server**.
 
-# Capítulo 4 --- Application (CQRS)
+**Principais componentes e recursos:**
 
-Foi construída toda a camada **Application** utilizando CQRS.
+- `OrderFlowDbContext`, Fluent API e Entity Configurations;
+- Change Tracking, Backing Fields e Shadow Properties;
+- `OrderRepository`, `OrderReadRepository` e `UnitOfWork`;
+- Dependency Injection e User Secrets;
+- migrations, índices, foreign keys e Model Snapshot.
 
-**Commands** - CreateOrder; - CancelOrder; - PayOrder.
+**Status:** Concluído para o escopo inicial, com evolução contínua conforme novos padrões são adicionados.
 
-**Queries** - GetOrderById; - GetOrders.
+---
 
-**Behaviors** - ValidationBehavior.
+## Capítulo 6 — RabbitMQ
 
-**Abstrações** - IUnitOfWork; - IOrderRepository; -
-IOrderReadRepository.
+Foi construída a infraestrutura de mensageria, com publicação e consumo de mensagens.
 
-**Tecnologias** - MediatR; - FluentValidation; - Vertical Slice
-Architecture.
+**Componentes documentados:**
 
-**Status:** ✅ Concluído
+- `RabbitMqConnection`;
+- `RabbitMqChannelFactory`;
+- inicialização de topologia por `RabbitMqTopologyHostedService`;
+- `RabbitMqRoutingKeyResolver`;
+- `RabbitMqEventPublisher`;
+- exchanges, queues, bindings e routing keys;
+- Publisher Confirms;
+- Manual ACK, QoS e Prefetch;
+- `RabbitMqConsumerBase<TMessage>`;
+- `OrderCreatedConsumer` e `OrderCreatedConsumerHostedService`.
 
-------------------------------------------------------------------------
+Foi validada a comunicação entre a API e um Worker independente por meio do RabbitMQ.
 
-# Capítulo 5 --- Infrastructure
+**Status:** Concluído.
 
-Foi implementada toda a infraestrutura de persistência.
+---
 
-**Principais componentes**
+## Capítulo 7 — Background Workers
 
-### Entity Framework Core
+A arquitetura passou a executar processamento assíncrono por meio de Workers independentes, incluindo:
 
--   OrderFlowDbContext;
--   Fluent API;
--   Entity Configurations;
--   Change Tracking;
--   Backing Fields;
--   Shadow Properties.
+- `OrderFlow.Worker.Payments`;
+- `OrderFlow.Worker.Outbox`;
+- serviços hospedados para consumo e publicação de mensagens.
 
-### Persistência
-
--   OrderRepository;
--   OrderReadRepository;
--   UnitOfWork.
-
-### SQL Server
-
--   Integração com SQL Server;
--   Dependency Injection;
--   User Secrets.
-
-### Banco de Dados
-
--   InitialCreate;
--   Migrations;
--   Índices;
--   Foreign Keys;
--   Model Snapshot.
-
-**Status:** ✅ Concluído
-
-------------------------------------------------------------------------
-
-# Capítulo 6 --- RabbitMQ (Publisher)
-
-Foi implementada a primeira etapa da infraestrutura de mensageria.
-
--   RabbitMQ Configuration;
--   RabbitMqChannelFactory;
--   RabbitMqTopologyHostedService;
--   RabbitMqEventPublisher;
--   RabbitMqRoutingKeyResolver;
--   Exchanges;
--   Queues;
--   Routing Keys;
--   Publisher Confirms.
-
-**Status:** ✅ Concluído
+O processamento separa o recebimento de eventos da execução de tarefas em segundo plano.
 
-------------------------------------------------------------------------
-
-# Capítulo 7 --- WebApi
-
-Foi implementada a primeira versão da API REST.
-
--   OrdersController;
--   POST /orders;
--   GET /orders;
--   GET /orders/{id};
-- 	PATCH /orders/{id}/pay
-- 	PATCH /orders/{id}/cancel
--   API Versioning;
--   Swagger/OpenAPI;
--   AutoMapper;
--   Contracts;
--   Integração com MediatR.
-
-**Status:** ✅ Concluído
+**Status:** Concluído para os fluxos documentados.
 
-------------------------------------------------------------------------
+---
 
-# Capítulo 8 – Transactional Outbox Pattern
+## Capítulo 8 — WebApi
 
-## Objetivo
+Foi implementada a API REST, incluindo:
 
-Eliminar a inconsistência entre a persistência do banco de dados e a publicação de eventos no RabbitMQ, garantindo que todo evento de domínio seja persistido de forma transacional antes de sua publicação.
+- `OrdersController`;
+- `POST /orders`;
+- `GET /orders`;
+- `GET /orders/{id}`;
+- `PATCH /orders/{id}/pay`;
+- `PATCH /orders/{id}/cancel`;
+- API Versioning, Swagger/OpenAPI, AutoMapper e Contracts;
+- integração com MediatR.
 
-## Componentes adicionados
+**Status:** Concluído.
 
-- OutboxMessage
-- OutboxMessageConfiguration
-- IOutboxMessageFactory
-- OutboxMessageFactory
-- IOutboxRepository
-- OutboxRepository
-- IOutboxEventTypeRegistry
-- OutboxEventTypeRegistry
-- OutboxPublisherService
-- OutboxPublisherHostedService
-- OrderFlow.Worker.Outbox
+---
 
-## Fluxo
+## Capítulo 9 — Transactional Outbox Pattern
 
-HTTP Request
-    ↓
-Command Handler
-    ↓
-Aggregate Root
-    ↓
-Domain Event
-    ↓
-OutboxMessage
-    ↓
-SaveChanges()
-    ↓
-SQL Server
-    ├── Orders
-    └── OutboxMessages
-            ↓
-OrderFlow.Worker.Outbox
-            ↓
-RabbitMQ
-            ↓
-Worker.Payments
-            ↓
-Consumer
-            ↓
-ACK
+### Objetivo
 
-## Benefícios
+Persistir alterações de negócio e mensagens de saída na mesma transação de banco de dados, evitando que a confirmação de uma alteração dependa da disponibilidade imediata do RabbitMQ.
 
-- Persistência transacional entre Orders e OutboxMessages.
-- Eliminação da janela de inconsistência entre banco e broker.
-- Publicação assíncrona dos eventos.
-- Recuperação automática após indisponibilidade do RabbitMQ.
-- Recuperação automática após indisponibilidade do Worker.Outbox.
-- Suporte ao modelo At Least Once Delivery.
+### Componentes
 
-## Cenários validados
+- `OutboxMessage` e `OutboxMessageConfiguration`;
+- `IOutboxMessageFactory` e `OutboxMessageFactory`;
+- `IOutboxRepository` e `OutboxRepository`;
+- `IOutboxEventTypeRegistry` e `OutboxEventTypeRegistry`;
+- `OutboxPublisherService` e `OutboxPublisherHostedService`;
+- `OrderFlow.Worker.Outbox`.
 
-- Publicação normal.
-- RabbitMQ indisponível.
-- Worker.Outbox indisponível.
-- Recuperação automática após retorno da infraestrutura.
-- Desserialização preservando EventId, OccurredAt e Payload.
-- Publicação e consumo validados de ponta a ponta.
+### Fluxo
 
-# Próxima etapa --- Processamento Assíncrono
-
-# Capítulo 6 — RabbitMQ
-
-Foi implementada toda a infraestrutura de mensageria do OrderFlow utilizando RabbitMQ.
-
-## Principais componentes implementados
-
-### Infraestrutura
-
-- RabbitMqConnection
-- RabbitMqChannelFactory
-- RabbitMqTopologyInitializer
-- RabbitMqRoutingKeyResolver
-- RabbitMqEventPublisher
-
-### Mensageria
-
-- Exchanges
-- Queues
-- Routing Keys
-- Publisher
-- Manual ACK
-- QoS (Prefetch)
-
-### Consumer Infrastructure
-
-- RabbitMqConsumerBase<TMessage>
-- OrderCreatedConsumer
-- OrderCreatedConsumerHostedService
-
-### Worker
-
-- OrderFlow.Worker.Payments
-
-### Fluxo validado
-
-Order Created
-
-↓
-
-Domain Event
-
-↓
-
-Publisher
-
-↓
-
-RabbitMQ
-
-↓
-
-Worker
-
-↓
-
-Consumer
-
-↓
-
-ACK
-
-## Conceitos estudados
-
-- Connection
-- Channel
-- Exchange
-- Queue
-- Binding
-- Routing Key
-- Publisher
-- Consumer
-- Hosted Service
-- Manual ACK
-- Prefetch
-- QoS
-
-Foi realizado o primeiro teste end-to-end entre a API e um Worker independente utilizando RabbitMQ.
-
-**Status:** ✅ Concluído
-
-------------------------------------------------------------------------
-
-# Etapas Futuras
-
--   Outbox Pattern;
--   Inbox Pattern;
--   Idempotência;
--   Saga;
--   OpenTelemetry;
--   Observabilidade;
--   Testcontainers.
-
-------------------------------------------------------------------------
-
-# Evolução da Arquitetura
-
-``` mermaid
+```mermaid
 flowchart TD
-    A[Estrutura da Solution]
-    --> B[Domain Model]
-    --> C[Domain Events]
-    --> D[Application CQRS]
-    --> E[Infrastructure]
-    --> F[RabbitMQ Publisher]
-    --> G[WebApi]
-    --> H[Consumers]
-    --> I[Background Workers]
-    --> J[Outbox]
-    --> K[Inbox]
-    --> L[Arquitetura Distribuída]
-    --> M[Observabilidade]
+    A[Requisição HTTP] --> B[Command Handler]
+    B --> C[Aggregate Root]
+    C --> D[Domain Event]
+    D --> E[OutboxMessage]
+    C --> F[Transação SQL Server]
+    E --> F
+    F --> G[(Orders e OutboxMessages)]
+    G --> H[Worker Outbox]
+    H --> I[RabbitMQ]
+    I --> J[Worker consumidor]
+    J --> K[ACK após processamento]
 ```
 
-------------------------------------------------------------------------
+### Benefícios e validações
 
-# Situação Atual
+- Persistência transacional de pedidos e mensagens de saída;
+- publicação assíncrona com modelo **At Least Once Delivery**;
+- recuperação após indisponibilidade do RabbitMQ;
+- recuperação após indisponibilidade do Worker.Outbox;
+- preservação de `EventId`, `OccurredAt` e `Payload` na serialização;
+- publicação e consumo validados de ponta a ponta.
 
-``` mermaid
+> O Outbox evita a perda da intenção de publicar o evento após o commit local, mas não garante entrega *exactly once*. Consumidores devem continuar preparados para duplicidades.
+
+**Status:** Concluído.
+
+---
+
+## Capítulo 10 — Inbox Pattern
+
+O Inbox registra o recebimento e o estado de processamento das mensagens, permitindo deduplicação e reprocessamento controlado.
+
+Foi validada a recuperação de uma mensagem com estado `FAILED` até `PROCESSED`.
+
+**Status:** Concluído para o fluxo implementado.
+
+---
+
+## Capítulo 11 — Idempotência
+
+A arquitetura utiliza mecanismos de idempotência para reduzir os efeitos de entregas repetidas e reexecuções, inclusive nos processamentos de pagamento e reserva de estoque da Saga.
+
+A idempotência é especialmente importante porque a entrega de mensagens segue o modelo **At Least Once**.
+
+**Status:** Concluído para os cenários implementados e validados.
+
+---
+
+## Capítulo 12 — Retry
+
+O processamento de mensagens diferencia falhas transitórias, que podem ser reprocessadas, de falhas permanentes.
+
+O fluxo de Retry utiliza filas de retentativa e retorno ao processamento após o intervalo configurado, com controle do número de tentativas.
+
+**Status:** Concluído.
+
+---
+
+## Capítulo 13 — Dead Letter Queue (DLQ)
+
+Mensagens que apresentam falhas permanentes ou esgotam a política de Retry são isoladas em uma **Dead Letter Queue**, preservando informações necessárias à investigação e à operação.
+
+**Status:** Concluído.
+
+---
+
+## Capítulo 14 — Saga Pattern
+
+### Decisão arquitetural
+
+Foi adotada uma **Saga orquestrada** para coordenar o fluxo distribuído de pedidos, pagamentos e reserva de estoque. A alternativa coreografada foi considerada, mas não é o modelo implementado nesta etapa.
+
+### Funcionalidades implementadas
+
+- Coordenação sequencial do fluxo de sucesso;
+- persistência do estado da Saga em `OrderSaga`;
+- processamento idempotente de pagamento e reserva de estoque;
+- retomada do fluxo após interrupções em pontos previamente persistidos;
+- integração com os mecanismos existentes de mensageria, Outbox e Inbox.
+
+### Cenários de recuperação validados
+
+1. Retomada após a persistência do estado `PAYMENT_COMPLETED`;
+2. Retomada após a persistência do estado `INVENTORY_RESERVED`;
+3. Retomada após a persistência de `Order PAID`, antes da conclusão da Saga, sem duplicar o `OrderPaidDomainEvent`;
+4. Reprocessamento de mensagem Inbox de `FAILED` para `PROCESSED`.
+
+### Fluxo lógico implementado
+
+```mermaid
+flowchart TD
+    A[Pedido criado] --> B[Orquestrador da Saga]
+    B --> C[Processar pagamento]
+    C --> D[Persistir PAYMENT_COMPLETED]
+    D --> E[Reservar estoque]
+    E --> F[Persistir INVENTORY_RESERVED]
+    F --> G[Marcar pedido como PAID]
+    G --> H[Concluir Saga]
+    B -.-> I[(OrderSaga - SQL Server)]
+    D -.-> I
+    F -.-> I
+    H -.-> I
+```
+
+O diagrama representa a sequência lógica de negócio e seus marcos persistidos, não uma especificação detalhada de transporte ou de limites transacionais.
+
+### Pendências
+
+- Compensação de pagamento, por meio de estorno ou operação equivalente;
+- liberação da reserva de estoque;
+- definição e validação dos fluxos de falha de negócio que acionam compensações.
+
+**Status:** Em andamento — fluxo de sucesso, idempotência e recuperação técnica implementados e validados; compensações pendentes.
+
+**Documentação relacionada:**
+
+- [`../concepts/13-Saga.md`](../concepts/13-Saga.md)
+- [`../adr/ADR-017-Saga-Pattern.md`](../adr/ADR-017-Saga-Pattern.md)
+
+---
+
+## Capítulo 15 — Observabilidade
+
+Etapa prevista para evolução dos recursos de:
+
+- logs estruturados;
+- métricas;
+- rastreamento distribuído;
+- OpenTelemetry.
+
+**Status:** Planejado.
+
+---
+
+## Linha de evolução da arquitetura
+
+```mermaid
+flowchart TD
+    A[Solution e Domain] --> B[Domain Events]
+    B --> C[Application CQRS]
+    C --> D[Infrastructure e SQL Server]
+    D --> E[RabbitMQ]
+    E --> F[Background Workers e WebApi]
+    F --> G[Transactional Outbox]
+    G --> H[Inbox e Idempotência]
+    H --> I[Retry e DLQ]
+    I --> J[Saga orquestrada - fluxo principal e recuperação]
+    J --> K[Compensações da Saga - pendentes]
+    K --> L[Observabilidade - planejada]
+```
+
+## Situação atual
+
+```mermaid
 flowchart LR
-    subgraph Concluído
-        A[Solution]
-        B[Domain]
-        C[Domain Events]
-        D[Application]
-        E[Infrastructure]
-        F[RabbitMQ Publisher]
-        G[WebApi]
+    subgraph Implementado_e_validado[Implementado e validado]
+        A[Domain e CQRS]
+        B[API e SQL Server]
+        C[RabbitMQ e Workers]
+        D[Outbox e Inbox]
+        E[Idempotência, Retry e DLQ]
+        F[Saga: sucesso e recuperação]
     end
 
-    subgraph Próximas Etapas
-        H[Consumers]
-        I[Workers]
-        J[Outbox]
-        K[Inbox]
-        L[Observabilidade]
+    subgraph Proximas_evolucoes[Próximas evoluções]
+        G[Compensações da Saga]
+        H[Observabilidade]
+        I[Versionamento de eventos e testes adicionais]
     end
 
+    F --> G
     G --> H
+    H --> I
 ```
 
-------------------------------------------------------------------------
+## Observações finais
 
-# Observações
+O OrderFlow evolui incrementalmente, consolidando implementações, validações e decisões arquiteturais antes de avançar para novos padrões. **Recuperação técnica** (retomar processamento após falhas) e **compensação de negócio** (desfazer efeitos já confirmados) são responsabilidades distintas: a primeira já possui cenários validados na Saga; a segunda é uma evolução pendente.
 
-O OrderFlow é desenvolvido de forma incremental. Cada capítulo consolida
-completamente uma etapa da arquitetura antes da introdução de novos
-componentes, garantindo a evolução consistente do código, da
-documentação e das decisões arquiteturais.
+Este documento descreve o estágio registrado do projeto, sem antecipar funcionalidades ainda não implementadas.

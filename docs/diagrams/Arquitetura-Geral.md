@@ -18,41 +18,33 @@ A solução foi construída seguindo os princípios de:
 - Retry
 - Dead Letter Queue (DLQ)
 - Transactional Outbox
+- Inbox Pattern e idempotência
+- Saga orquestrada com estado persistido
+- Recuperação de processamento após falhas
 
 A arquitetura mantém forte separação entre regras de negócio e infraestrutura, permitindo baixo acoplamento, alta coesão e facilidade de evolução.
 
-                    ┌──────────────────────┐
-                    │   OrderFlow.Api      │
-                    └──────────┬───────────┘
-                               │
-                               ▼
-                    ┌──────────────────────┐
-                    │      SQL Server      │
-                    │                      │
-                    │  Orders             │
-                    │  OrderItems         │
-                    │  OutboxMessages     │
-                    └──────────┬───────────┘
-                               │
-                               ▼
-               ┌────────────────────────────┐
-               │ OrderFlow.Worker.Outbox    │
-               └──────────┬─────────────────┘
-                          │
-                          ▼
-                  RabbitMQ Topic Exchange
-                          │
-                          ▼
-               orderflow.order-created
-                          │
-                          ▼
-               ┌───────────────────────────┐
-               │ OrderFlow.Worker.Payments │
-               └──────────┬────────────────┘
-                          │
-                          ▼
-                     OrderCreatedConsumer
+```mermaid
+flowchart TD
+    API[OrderFlow.Api] --> APP[Application / CQRS]
+    APP --> DOM[Domain / Orders e Domain Events]
+    APP --> SAGA[Orquestração da Saga]
+    DOM --> DB[(SQL Server)]
+    SAGA <--> DB
+    DB --> OUTBOX[(OutboxMessages)]
+    OUTBOX --> WO[OrderFlow.Worker.Outbox]
+    WO --> MQ[RabbitMQ]
+    MQ --> WP[OrderFlow.Worker.Payments]
+    WP --> INBOX[(InboxMessages)]
+    WP --> DB
+    WP --> SAGA
+    SAGA --> PAYMENT[Etapa de pagamento]
+    SAGA --> INVENTORY[Etapa de reserva de estoque]
+    PAYMENT --> DB
+    INVENTORY --> DB
+```
 
+O diagrama é **conceitual**: representa responsabilidades e comunicação, não uma correspondência obrigatória entre cada caixa e uma classe ou processo físico. O estado da Saga é persistido em `OrderSaga`; o processamento das mensagens utiliza a infraestrutura existente de RabbitMQ, Outbox e Inbox.
 
 ---
 
@@ -354,9 +346,10 @@ L --> M
 | **Api** | Receber requisições HTTP, mapear contratos, enviar Commands e Queries e produzir respostas HTTP. |
 | **Application** | Orquestrar casos de uso, validar entradas e depender apenas de abstrações. |
 | **Domain** | Concentrar entidades, regras de negócio, invariantes, transições de estado e Domain Events. |
-| **Infrastructure** | Implementar persistência, SQL Server, Unit of Work, Transactional Outbox, RabbitMQ, Retry, Dead Letter Queue e integrações externas. |
+| **Infrastructure** | Implementar persistência, SQL Server, Unit of Work, Transactional Outbox, Inbox, RabbitMQ, Retry, Dead Letter Queue e integrações externas. |
 | **OrderFlow.Worker.Outbox** | Consultar mensagens não processadas na tabela `OutboxMessages`, desserializar os eventos, publicá-los no RabbitMQ e preencher `ProcessedOnUtc` após o sucesso. |
-| **OrderFlow.Worker.Payments** | Consumir eventos do RabbitMQ, executar o processamento específico da mensagem e confirmar a entrega por meio de ACK. |
+| **OrderFlow.Worker.Payments** | Consumir mensagens do RabbitMQ, executar o processamento de negócio com proteção contra duplicidades e confirmar o processamento conforme a política do consumer. |
+| **Orquestração da Saga** | Coordenar as etapas de pagamento e reserva de estoque, persistir o progresso e permitir retomada segura após falhas técnicas. |
 
 ---
 
@@ -379,6 +372,9 @@ A arquitetura do OrderFlow foi construída utilizando os seguintes princípios e
 - Transactional Outbox
 - At Least Once Delivery
 - Consistência Eventual
+- Inbox Pattern
+- Idempotência
+- Saga orquestrada
 
 ---
 
@@ -410,7 +406,7 @@ Os Domain Events são convertidos em registros da tabela `OutboxMessages` durant
 
 Após a confirmação da transação, o `OrderFlow.Worker.Outbox` consulta periodicamente as mensagens ainda não processadas, desserializa os eventos, publica-os no RabbitMQ e atualiza o campo `ProcessedOnUtc`.
 
-Essa abordagem elimina a janela de inconsistência existente entre o banco de dados e o broker de mensagens, garantindo o padrão **Transactional Outbox** e o modelo de entrega **At Least Once**.
+Essa abordagem evita a perda do evento quando a transação de negócio é confirmada mas o broker está indisponível. A publicação é assíncrona e pode ocorrer mais de uma vez; por isso, o processamento deve ser idempotente. O padrão oferece consistência eventual, não uma transação distribuída única nem garantia de entrega exatamente uma vez.
 
 ## Cenários Validados
 
@@ -424,4 +420,62 @@ Durante a implementação foram executados e validados os seguintes cenários:
 - preservação de `EventId`, `OccurredAt` e `Payload` durante a serialização e desserialização;
 - processamento completo até o ACK do Consumer.
 
-Esses testes confirmam a resiliência da arquitetura e a correta implementação do **Transactional Outbox Pattern**.
+Esses cenários validam a recuperação do fluxo de publicação e consumo nas condições testadas, sem dispensar testes adicionais de concorrência e falhas não simuladas.
+
+---
+
+# Saga Orquestrada — Capítulo 14
+
+A Saga orquestrada coordena a conclusão do pedido por meio de etapas de negócio, com **estado persistido** em `OrderSaga`. O fluxo de sucesso inclui processamento do pagamento, reserva de estoque e atualização do pedido para **PAID**; após a conclusão, a Saga passa para **COMPLETED**.
+
+A coordenação é lógica e não depende de uma transação única abrangendo todas as etapas. Cada progresso confirmado deve ser persistido, de modo que a retomada possa identificar o que já ocorreu e evitar executar novamente efeitos de negócio concluídos.
+
+```mermaid
+flowchart TD
+    START[Início da Saga do pedido] --> LOAD[Carregar ou persistir estado da Saga]
+    LOAD --> PAY{Pagamento já concluído?}
+    PAY -->|Não| PROCESS_PAY[Processar pagamento com idempotência]
+    PROCESS_PAY --> SAVE_PAY[Persistir PAYMENT_COMPLETED]
+    PAY -->|Sim| STOCK
+    SAVE_PAY --> STOCK{Reserva já concluída?}
+    STOCK -->|Não| RESERVE[Reservar estoque com idempotência]
+    RESERVE --> SAVE_STOCK[Persistir INVENTORY_RESERVED]
+    STOCK -->|Sim| ORDER
+    SAVE_STOCK --> ORDER{Pedido já está PAID?}
+    ORDER -->|Não| MARK_PAID[Atualizar pedido para PAID]
+    ORDER -->|Sim| COMPLETE
+    MARK_PAID --> COMPLETE[Persistir Saga COMPLETED]
+```
+
+O diagrama descreve o **caminho de sucesso e retomada técnica**. Não representa compensações já implementadas.
+
+## Persistência, Inbox e idempotência
+
+O estado persistido da Saga permite retomar o processamento após uma interrupção. A Inbox protege o processamento de mensagens repetidas e pode registrar a passagem de `FAILED` para `PROCESSED` após reprocessamento bem-sucedido. Além disso, as etapas de pagamento e reserva de estoque aplicam verificações de idempotência de negócio, necessárias porque a entrega de mensagens pode ocorrer mais de uma vez.
+
+A inicialização da topologia RabbitMQ é realizada pelo `RabbitMqTopologyHostedService`. Retry e DLQ tratam a política de entrega e falhas de mensageria; **não substituem compensações de negócio**.
+
+## Cenários de recuperação validados
+
+Foram validadas retomadas após interrupções em três pontos do fluxo:
+
+1. Depois da persistência de `PAYMENT_COMPLETED`.
+2. Depois da persistência de `INVENTORY_RESERVED`.
+3. Depois de o pedido ser persistido como `PAID`, mas antes de a Saga ser persistida como `COMPLETED`.
+
+No terceiro cenário, foi observado **um único `OrderPaidDomainEvent`**. Também foi validado o reprocessamento de mensagem da Inbox de `FAILED` para `PROCESSED`.
+
+Essas verificações demonstram o comportamento observado nos cenários testados; não constituem garantia geral de *exactly-once* nem comprovam proteção completa contra concorrência.
+
+## Evolução pendente: compensações
+
+As compensações ainda **não foram implementadas**. A próxima evolução prevista inclui reversão de pagamento e liberação de reserva de estoque quando uma falha de negócio exigir desfazer efeitos já confirmados. O desenho de estados e a política de falhas devem distinguir retomada técnica de compensação de negócio.
+
+## Documentação relacionada
+
+- [Conceito — Saga](../concepts/13-Saga.md)
+- [ADR-017 — Saga Pattern](../adr/ADR-017-Saga-Pattern.md)
+- [Fluxo de Pagamento](Fluxo-Pagamento.md)
+- [Fluxo de Inbox](Fluxo-Inbox.md)
+- [Fluxo de Outbox](Fluxo-Outbox.md)
+- [Evolução da Arquitetura](Evolucao-da-Arquitetura.md)

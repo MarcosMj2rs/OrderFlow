@@ -1,320 +1,332 @@
-# Glossário
+# Glossário — OrderFlow
 
-Este documento reúne os principais termos utilizados durante o desenvolvimento do **OrderFlow**.
+Este documento reúne os principais termos utilizados durante o desenvolvimento do **OrderFlow**, um laboratório de arquitetura distribuída em **.NET 10**.
 
-Os conceitos apresentados aqui possuem definições resumidas. Para um aprofundamento, consulte os documentos disponíveis na pasta `docs/concepts`.
+As definições são resumidas. Para aprofundamento, consulte `docs/concepts`, os registros em `docs/adr` e os diagramas em `docs/diagrams`.
 
----
-
-# A
-
-## Aggregate
-
-Conjunto de entidades e objetos de valor que devem permanecer consistentes como uma única unidade de negócio.
-
-No OrderFlow, o Aggregate é composto por:
-
-- Order (Aggregate Root)
-- OrderItem
+> **Situação do Capítulo 14:** o fluxo de sucesso da Saga orquestrada, a persistência de estado, a idempotência e cenários de recuperação foram implementados e validados. As compensações de pagamento e estoque permanecem pendentes.
 
 ---
 
-## Aggregate Root
+## A
 
-Entidade responsável por controlar o acesso ao Aggregate e garantir a consistência de todas as suas regras de negócio.
+### ACK (Acknowledgement)
 
-No OrderFlow, a Aggregate Root é a entidade `Order`.
+Confirmação enviada pelo consumidor ao RabbitMQ indicando que uma entrega foi processada com sucesso. Um ACK não equivale, por si só, à confirmação de toda a transação de negócio.
 
----
+### Aggregate
 
-# AsNoTracking
+Conjunto de entidades e objetos de valor que devem permanecer consistentes como uma unidade de negócio. No OrderFlow, o Aggregate de pedido é formado por `Order` e seus `OrderItems`.
 
-Configuração utilizada em consultas do Entity Framework Core para evitar que os objetos retornados sejam armazenados no Change Tracker.
+### Aggregate Root
 
-No OrderFlow, é utilizada pelo `OrderReadRepository` nas consultas destinadas apenas à leitura.
+Entidade que controla o acesso ao Aggregate e protege suas invariantes. No Aggregate de pedido do OrderFlow, a raiz é `Order`.
 
----
+### AsNoTracking
 
-# Backing Field
+Configuração do Entity Framework Core que desabilita o rastreamento das entidades retornadas por uma consulta. É utilizada pelo `OrderReadRepository` em operações de leitura.
 
-Campo privado utilizado pelo Entity Framework Core para armazenar o estado de uma propriedade ou navegação sem exigir que a coleção mutável seja exposta publicamente.
+### At Least Once Delivery
 
-No OrderFlow, o campo `_items` é utilizado como backing field da propriedade `Items` do Aggregate `Order`.
-
----
-
-# C
-
-## Command
-
-Objeto que representa uma intenção de alterar o estado do sistema.
-
-No OrderFlow:
-
-- CreateOrder
-- CancelOrder
-- PayOrder
-
-Os Commands executam regras de negócio através dos Aggregates e podem gerar Domain Events.
+Modelo de entrega em que uma mensagem pode chegar uma ou mais vezes. Exige tratamento de duplicidades no consumidor, como Inbox e idempotência; não garante processamento exatamente uma vez.
 
 ---
 
-## CQRS (Command Query Responsibility Segregation)
+## B
 
-Padrão arquitetural que separa operações de escrita (**Commands**) das operações de leitura (**Queries**), permitindo que ambas evoluam de forma independente.
+### Backing Field
 
----
+Campo privado utilizado pelo Entity Framework Core para persistir o estado sem expor coleções mutáveis. No Aggregate `Order`, `_items` é o backing field da propriedade `Items`.
 
-# Change Tracking
+### Background Worker
 
-Mecanismo do Entity Framework Core responsável por acompanhar o estado das entidades carregadas pelo `DbContext`.
+Processo que executa tarefas em segundo plano. O OrderFlow utiliza Workers para publicação de mensagens da Outbox e processamento assíncrono.
 
-No OrderFlow, os Aggregates são carregados de forma rastreada, alterados por comportamentos de domínio e persistidos através de `SaveChangesAsync()`.
+### Binding
 
----
-
-# Cascade Delete
-
-Comportamento de exclusão no qual os registros dependentes são removidos quando o registro principal é excluído fisicamente.
-
-No OrderFlow, uma exclusão física de `Order` também remove seus `OrderItems`. O cancelamento de um pedido não utiliza exclusão física.
+Associação entre uma Exchange e uma Queue no RabbitMQ, normalmente utilizando uma Routing Key.
 
 ---
 
-# D
+## C
 
-## Domain Event
+### Cascade Delete
 
-Evento que representa algo relevante ocorrido dentro do domínio.
+Comportamento pelo qual registros dependentes são excluídos quando o registro principal é excluído fisicamente. No OrderFlow, uma exclusão física de `Order` pode remover seus `OrderItems`; cancelar um pedido não é uma exclusão física.
 
-Exemplo:
+### Change Tracking
 
-- OrderCreatedDomainEvent
-- OrderCancelledDomainEvent
-- OrderPaidDomainEvent
+Mecanismo do Entity Framework Core que acompanha alterações em entidades carregadas pelo `DbContext`, permitindo persistir mudanças com `SaveChangesAsync()`.
 
-No futuro, esses eventos poderão originar Integration Events.
+### Clean Architecture
 
----
+Organização arquitetural que separa responsabilidades e mantém regras de negócio independentes de tecnologias externas. No OrderFlow, as camadas centrais não dependem diretamente de SQL Server, RabbitMQ ou HTTP.
 
-## Domain Exception
+### Command
 
-Exceção utilizada para representar violações das regras de negócio do domínio.
+Objeto que representa uma intenção de alterar o estado do sistema. Exemplos do OrderFlow: `CreateOrder`, `CancelOrder` e `PayOrder`. Os respectivos Handlers coordenam casos de uso e podem provocar Domain Events.
 
----
+### Compensação (Saga)
 
-# DbContext
+Operação de negócio que procura desfazer ou neutralizar os efeitos de uma etapa previamente concluída de uma transação distribuída. Exemplos planejados para o OrderFlow são **estorno de pagamento** e **liberação de reserva de estoque**. **Essas compensações ainda não foram implementadas.**
 
-Classe central do Entity Framework Core responsável por representar uma sessão de trabalho com o banco de dados.
+Uma compensação não é o mesmo que um rollback transacional de banco de dados.
 
-O `OrderFlowDbContext` gerencia o Change Tracking, os mapeamentos e a persistência das entidades do OrderFlow.
+### Consistência Eventual
 
----
+Modelo no qual componentes distribuídos podem observar estados temporariamente diferentes, convergindo após o processamento das mensagens e das etapas necessárias. A Saga coordena transações locais sem exigir uma transação distribuída única.
 
-# E
+### Consumer
 
-## Entity
+Componente que recebe mensagens de uma fila e executa seu processamento. No OrderFlow, consumidores concretos utilizam a infraestrutura compartilhada de mensageria.
 
-Objeto que possui identidade própria durante todo o seu ciclo de vida.
+### CQRS (Command Query Responsibility Segregation)
 
-No OrderFlow:
-
-- Order
-- OrderItem
+Padrão que separa operações de escrita (**Commands**) das operações de leitura (**Queries**), permitindo modelos e responsabilidades distintos.
 
 ---
 
-# Eager Loading
+## D
 
-Estratégia de carregamento na qual entidades relacionadas são obtidas juntamente com a entidade principal.
+### DbContext
 
-No OrderFlow, o `OrderRepository` carrega o Aggregate `Order` com seus itens para garantir que o comportamento de domínio opere sobre o Aggregate completo.
+Classe central do Entity Framework Core que representa uma sessão de persistência. O `OrderFlowDbContext` gerencia mapeamentos, Change Tracking e gravação de dados.
 
----
+### Dead Letter Queue (DLQ)
 
-# Entity Configuration
+Fila destinada a isolar mensagens que não puderam ser processadas normalmente, por exemplo, após falhas permanentes ou esgotamento das tentativas de Retry. Encaminhar uma mensagem à DLQ **não executa automaticamente uma compensação de negócio**.
 
-Classe responsável por definir o mapeamento de uma entidade através da Fluent API do Entity Framework Core.
+### Domain Event
 
-No OrderFlow, `OrderConfiguration` e `OrderItemConfiguration` concentram os mapeamentos da persistência.
+Evento que representa um fato relevante ocorrido no domínio. Exemplos: `OrderCreatedDomainEvent`, `OrderCancelledDomainEvent` e `OrderPaidDomainEvent`.
 
----
+### Domain Exception
 
-# Fluent API
+Exceção que representa a violação de uma regra de negócio do domínio.
 
-API de configuração do Entity Framework Core utilizada para mapear entidades, propriedades, relacionamentos, índices e restrições sem adicionar atributos de persistência ao Domain.
+### Domain-Driven Design (DDD)
 
----
-
-# Foreign Key
-
-Restrição que relaciona registros entre tabelas e preserva a integridade referencial.
-
-No OrderFlow, `OrderItems.OrderId` referencia `Orders.Id`.
+Abordagem de modelagem que coloca as regras e a linguagem do negócio no centro do desenvolvimento. No OrderFlow, inclui Aggregates, entidades, invariantes e Domain Events.
 
 ---
 
-# H
+## E
 
-## Handler
+### Eager Loading
 
-Componente responsável por orquestrar um caso de uso da aplicação.
+Estratégia de carregamento que recupera entidades relacionadas junto da entidade principal. No OrderFlow, o `OrderRepository` carrega o pedido com seus itens para operar sobre o Aggregate completo.
 
-O Handler:
+### Entity
 
-- recebe um Command ou Query;
-- coordena a execução;
-- solicita persistência quando necessário;
-- retorna o resultado.
+Objeto de domínio com identidade própria ao longo de seu ciclo de vida. Exemplos: `Order` e `OrderItem`.
 
-Não implementa regras de negócio.
+### Entity Configuration
 
----
+Classe que concentra mapeamentos do Entity Framework Core por meio da Fluent API. Exemplos: `OrderConfiguration` e `OrderItemConfiguration`.
 
-# I
+### Event-Driven Architecture
 
-## Invariante
+Estilo arquitetural em que componentes se comunicam por eventos. No OrderFlow, a mensageria assíncrona utiliza RabbitMQ e padrões de confiabilidade como Outbox e Inbox.
 
-Regra de negócio que deve permanecer verdadeira durante todo o ciclo de vida de um Aggregate.
+### Exchange
 
-Exemplos:
-
-- Um pedido deve possuir pelo menos um item.
-- Um pedido cancelado não pode receber novos itens.
-- O valor total do pedido deve corresponder à soma dos seus itens.
+Componente do RabbitMQ que recebe mensagens publicadas e as encaminha às filas conforme sua configuração e as Routing Keys.
 
 ---
 
-# Migration
+## F
 
-Arquivo gerado pelo Entity Framework Core que descreve as alterações necessárias para evoluir o esquema do banco de dados entre dois estados do modelo.
+### Fluent API
 
-A migration inicial do OrderFlow é chamada `InitialCreate`.
+API do Entity Framework Core para configurar entidades, propriedades, índices e relacionamentos sem introduzir atributos de persistência no domínio.
 
----
+### Foreign Key
 
-# Model Snapshot
-
-Arquivo mantido automaticamente pelo Entity Framework Core que representa o estado atual do modelo conhecido pelo framework.
-
-Ele é utilizado como base de comparação para gerar novas migrations e não deve ser alterado manualmente.
+Restrição de banco de dados que relaciona registros e preserva a integridade referencial. No OrderFlow, `OrderItems.OrderId` referencia `Orders.Id`.
 
 ---
 
-# P
+## H
 
-## Pipeline Behavior
+### Handler
 
-Componente do MediatR responsável por executar comportamentos transversais antes ou depois da execução dos Handlers.
-
-No OrderFlow, o primeiro comportamento implementado foi o `ValidationBehavior`.
+Componente responsável por coordenar a execução de um Command ou Query, acessando abstrações e solicitando persistência quando necessário. As regras e invariantes do negócio permanecem no domínio.
 
 ---
 
-# Q
+## I
 
-## Query
+### Idempotência
 
-Objeto responsável por representar uma operação de leitura.
+Propriedade pela qual repetir uma operação com a mesma identidade não produz efeitos de negócio adicionais indevidos. No OrderFlow, é importante tanto para o consumo de mensagens quanto para as etapas de pagamento e reserva de estoque da Saga.
 
-As Queries:
+### Inbox Pattern
 
-- nunca alteram o estado do domínio;
-- não executam regras de negócio;
-- retornam modelos específicos de leitura (Read Models).
+Padrão que registra e controla o processamento de mensagens recebidas para evitar efeitos duplicados e permitir tratamento de falhas. No OrderFlow, há cenário validado de reprocessamento de mensagem de `FAILED` para `PROCESSED`.
 
----
+### Integration Event
 
-# R
+Mensagem usada para comunicar acontecimentos entre componentes ou serviços. É conceitualmente distinta de um Domain Event, embora um evento de domínio possa originar uma mensagem de integração.
 
-## Read Model
+### Invariante
 
-Modelo de dados utilizado exclusivamente para consultas.
-
-No OrderFlow, cada Query retorna um DTO específico de leitura, evitando expor diretamente as entidades do domínio.
+Regra que deve permanecer verdadeira ao longo do ciclo de vida de um Aggregate. Exemplos: um pedido deve possuir itens; um pedido cancelado não pode receber novos itens; o total deve corresponder à soma dos itens.
 
 ---
 
-## Read Repository
+## M
 
-Repositório especializado em operações de leitura.
+### MediatR
 
-No OrderFlow, essa responsabilidade é representada pela interface:
+Biblioteca utilizada para despachar Commands e Queries aos respectivos Handlers e executar Pipeline Behaviors na camada Application.
 
-```text
-IOrderReadRepository
-```
+### Migration
 
-Essa separação reforça a aplicação do padrão CQRS.
+Arquivo do Entity Framework Core que descreve mudanças no esquema do banco de dados. A migration inicial do OrderFlow é `InitialCreate`.
 
----
+### Model Snapshot
 
-## Repository
-
-Abstração responsável pelo acesso aos Aggregates do domínio.
-
-No OrderFlow, o `IOrderRepository` é utilizado exclusivamente pelos Commands para persistir alterações sobre o Aggregate `Order`.
+Representação do modelo conhecida pelo Entity Framework Core, utilizada na comparação para gerar novas migrations. Não deve ser alterada manualmente.
 
 ---
 
-# Shadow Property
+## O
 
-Propriedade existente apenas no modelo interno do Entity Framework Core, sem estar declarada na classe de domínio.
+### Orquestrador de Saga
 
-No OrderFlow, `OrderId` é uma Shadow Property utilizada como Foreign Key de `OrderItem`.
+Componente que coordena explicitamente a sequência de etapas de uma Saga, acompanha seu estado e determina a próxima ação conforme os resultados. No OrderFlow, foi adotada a abordagem **orquestrada**, não a coreografada.
 
----
+### OrderSaga
 
-# SQL Server
+Registro persistido que representa o estado da execução da Saga de um pedido. Sua persistência permite identificar etapas já concluídas e apoiar a recuperação após interrupções.
 
-Banco de dados relacional utilizado pelo OrderFlow para persistir os Aggregates da aplicação.
+### Outbox Pattern (Transactional Outbox)
 
-No ambiente atual, o SQL Server está instalado localmente e é acessado através do Entity Framework Core.
-
-# U
-
-## Unit of Work
-
-Abstração responsável por confirmar as alterações realizadas durante um caso de uso.
-
-No OrderFlow, o `IUnitOfWork` desacopla a camada Application da implementação do Entity Framework Core.
+Padrão que grava eventos destinados à publicação juntamente com as alterações de negócio em uma transação local de banco de dados. Um Worker publica posteriormente as mensagens no RabbitMQ. Reduz a janela de inconsistência entre gravação e publicação, mas não elimina a possibilidade de entregas duplicadas.
 
 ---
 
+## P
 
-# User Secrets
+### Pipeline Behavior
 
-Mecanismo utilizado durante o desenvolvimento para armazenar configurações sensíveis fora do código-fonte.
+Componente do MediatR que executa lógica transversal ao redor de um Handler. No OrderFlow, `ValidationBehavior` valida as entradas antes da execução.
 
-No OrderFlow, a Connection String do SQL Server é armazenada em User Secrets.
+### Prefetch (QoS)
 
----
+Configuração do RabbitMQ que limita a quantidade de mensagens entregues a um consumidor sem confirmação, auxiliando no controle de carga.
 
-# V
+### Publisher
 
-## ValidationBehavior
+Componente responsável por publicar mensagens em uma Exchange do RabbitMQ.
 
-Pipeline Behavior responsável por executar automaticamente todos os Validators registrados antes da execução do Handler.
+### Publisher Confirm
 
-Caso exista alguma falha de validação, o Handler não é executado.
-
----
-
-## Validator
-
-Componente responsável por validar os dados de entrada de um Command ou Query.
-
-No OrderFlow, os Validators são implementados utilizando **FluentValidation**.
-
-Eles validam apenas a entrada da aplicação, enquanto as regras de negócio permanecem encapsuladas no domínio.
+Mecanismo de confirmação pelo broker de que recebeu uma publicação. É relevante para a confiabilidade do Outbox e da republicação em fluxos de Retry e DLQ.
 
 ---
 
-## Vertical Slice Architecture
+## Q
 
-Estratégia de organização em que cada caso de uso possui todos os seus componentes agrupados em uma única pasta.
+### Query
 
-Exemplo:
+Objeto que representa uma operação de leitura. No OrderFlow, as Queries retornam modelos específicos e não devem alterar o estado do domínio.
+
+### Queue
+
+Fila do RabbitMQ que armazena mensagens até sua entrega aos consumidores, segundo a configuração e as garantias do broker.
+
+---
+
+## R
+
+### RabbitMQ
+
+Broker de mensagens utilizado pelo OrderFlow para comunicação assíncrona, com Exchanges, Queues, Bindings e Routing Keys.
+
+### Read Model
+
+Modelo de dados destinado à leitura. No OrderFlow, Queries retornam DTOs, sem expor diretamente as entidades de domínio.
+
+### Read Repository
+
+Abstração especializada em consultas. No OrderFlow, é representada por `IOrderReadRepository`.
+
+### Recuperação de Saga
+
+Retomada ou reexecução controlada de uma Saga após interrupção técnica, considerando o estado persistido e a idempotência das etapas. No OrderFlow, foram validados cenários de interrupção após `PAYMENT_COMPLETED`, após `INVENTORY_RESERVED` e após o pedido atingir `PAID` antes de a Saga ser marcada como `COMPLETED`.
+
+### Repository
+
+Abstração de acesso aos Aggregates. O `IOrderRepository` é utilizado pelos casos de uso de escrita para carregar e persistir o Aggregate `Order`.
+
+### Retry
+
+Estratégia de repetir o processamento de uma operação ou mensagem após falhas recuperáveis, respeitando uma política de tentativas. Retry técnico não substitui compensação de negócio.
+
+### Routing Key
+
+Identificador usado pelo RabbitMQ para decidir, em conjunto com o tipo de Exchange e seus Bindings, para quais filas uma mensagem será encaminhada.
+
+---
+
+## S
+
+### Saga Pattern
+
+Padrão de coordenação de uma operação de negócio distribuída composta por **transações locais**. Cada etapa confirma suas próprias alterações, enquanto a Saga acompanha o progresso e pode, quando implementado, acionar compensações em caso de falha de negócio.
+
+No OrderFlow, a Saga é **orquestrada** e coordena o fluxo de pagamento, reserva de estoque e conclusão do pedido. O fluxo de sucesso, a persistência e a recuperação técnica foram validados; **as compensações ainda estão pendentes**.
+
+Consulte `docs/concepts/13-Saga.md` e `docs/adr/ADR-017-Saga-Pattern.md`.
+
+### Saga Coreografada
+
+Modelo de Saga em que os participantes reagem a eventos sem um orquestrador central responsável pela sequência completa. Foi considerada como alternativa arquitetural, mas não é a abordagem adotada no OrderFlow.
+
+### Shadow Property
+
+Propriedade existente apenas no modelo interno do Entity Framework Core, sem declaração na classe de domínio. No OrderFlow, `OrderId` é utilizada como Shadow Property para o relacionamento de `OrderItem`.
+
+### SQL Server
+
+Banco de dados relacional utilizado para persistir os dados do OrderFlow, incluindo pedidos, mensagens de confiabilidade e estado da Saga.
+
+---
+
+## T
+
+### Transação Local
+
+Conjunto de alterações confirmadas atomicamente dentro de um único recurso transacional, como o SQL Server. Uma Saga combina várias transações locais, sem pressupor uma transação distribuída única.
+
+---
+
+## U
+
+### Unit of Work
+
+Abstração responsável por confirmar as alterações de um caso de uso. No OrderFlow, `IUnitOfWork` desacopla a Application da implementação de persistência com Entity Framework Core.
+
+### User Secrets
+
+Recurso de desenvolvimento do .NET para armazenar configurações sensíveis fora do código-fonte. No OrderFlow, é utilizado para a Connection String local do SQL Server.
+
+---
+
+## V
+
+### ValidationBehavior
+
+Pipeline Behavior que executa Validators registrados antes de chamar o Handler. Havendo falha de validação, o Handler não é executado.
+
+### Validator
+
+Componente que valida dados de entrada de Commands e Queries. No OrderFlow, utiliza FluentValidation; regras de negócio continuam encapsuladas no domínio.
+
+### Vertical Slice Architecture
+
+Estratégia de organização que agrupa os componentes por caso de uso. Exemplo:
 
 ```text
 CreateOrder
@@ -324,4 +336,18 @@ CreateOrder
 └── CreateOrderResponse.cs
 ```
 
-Cada funcionalidade é desenvolvida de forma independente, aumentando a coesão, reduzindo o acoplamento e facilitando a evolução da aplicação.
+Facilita a evolução independente de funcionalidades e reforça a coesão de cada caso de uso.
+
+---
+
+## Referências internas
+
+- `docs/concepts/08-Outbox-Pattern.md`
+- `docs/concepts/09-Inbox-Pattern.md`
+- `docs/concepts/10-Idempotencia.md`
+- `docs/concepts/11-Retry.md`
+- `docs/concepts/12-Dead-Letter-Queue.md`
+- `docs/concepts/13-Saga.md`
+- `docs/adr/ADR-017-Saga-Pattern.md`
+- `docs/diagrams/Arquitetura-Geral.md`
+- `docs/diagrams/Fluxo-Pagamento.md`
