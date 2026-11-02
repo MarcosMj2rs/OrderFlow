@@ -1,4 +1,5 @@
-﻿using FluentAssertions;
+﻿
+using FluentAssertions;
 using Moq;
 using OrderFlow.Application.Abstractions.Persistence;
 using OrderFlow.Application.Features.Orders.Commands.PayOrder;
@@ -7,62 +8,158 @@ using OrderFlow.Domain.Enumerations;
 using OrderFlow.Domain.Exceptions;
 using OrderFlow.Domain.Repositories;
 
-namespace OrderFlow.Application.Tests.Features.Orders.Commands.PayOrder
+namespace OrderFlow.Application.Tests.Features.Orders.Commands.PayOrder;
+
+public sealed class PayOrderCommandHandlerTests
 {
-    public sealed class PayOrderCommandHandlerTests
+    [Fact]
+    public async Task Should_Pay_Order_When_Order_Exists()
     {
-        [Fact]
-        public async Task Should_Pay_Order_When_Order_Exists()
-        {
-            // Arrange
-            var order = new Order(Guid.NewGuid(), Guid.NewGuid(), quantity: 2, unitPrice: 100m);
+        // Arrange
+        var order = new Order(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            quantity: 2,
+            unitPrice: 100m);
 
-            var repositoryMock = new Mock<IOrderRepository>();
-            var unitOfWorkMock = new Mock<IUnitOfWork>();
+        var saga = new OrderSaga(order.Id);
+        saga.MarkPaymentCompleted();
+        saga.MarkInventoryReserved();
 
-            repositoryMock.Setup(repository => repository
-                        .GetByIdAsync(
-                            order.Id,
-                            It.IsAny<CancellationToken>()))
-                        .ReturnsAsync(order);
+        var repositoryMock = new Mock<IOrderRepository>();
+        var sagaRepositoryMock = new Mock<IOrderSagaRepository>();
+        var unitOfWorkMock = new Mock<IUnitOfWork>();
+        var transactionContextMock = new Mock<IOrderTransactionContext>();
+        var transactionExecutorMock = new Mock<IOrderTransactionExecutor>();
 
-            var handler = new PayOrderCommandHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        repositoryMock
+            .Setup(repository => repository.GetByIdAsync(
+                order.Id,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(order);
 
-            var command = new PayOrderCommand(order.Id);
+        sagaRepositoryMock
+            .Setup(repository => repository.GetByOrderIdAsync(
+                order.Id,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(saga);
 
-            // Act
-            await handler.Handle(command, CancellationToken.None);
+        transactionContextMock
+            .SetupGet(context => context.Orders)
+            .Returns(repositoryMock.Object);
 
-            // Assert
-            order.Status.Should().Be(OrderStatus.PAID);
-            unitOfWorkMock.Verify(unitOfWork => unitOfWork.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
-        }
+        transactionContextMock
+            .SetupGet(context => context.OrderSagas)
+            .Returns(sagaRepositoryMock.Object);
 
-        [Fact]
-        public async Task Should_Throw_DomainException_When_Order_Does_Not_Exist()
-        {
-            // Arrange
-            var repositoryMock = new Mock<IOrderRepository>();
-            var unitOfWorkMock = new Mock<IUnitOfWork>();
+        transactionContextMock
+            .SetupGet(context => context.UnitOfWork)
+            .Returns(unitOfWorkMock.Object);
 
-            repositoryMock
-                .Setup(repository => repository
-                .GetByIdAsync(
-                    It.IsAny<Guid>(),
-                    It.IsAny<CancellationToken>()))
-                .ReturnsAsync((Order?)null);
+        transactionExecutorMock
+            .Setup(executor => executor.ExecuteAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<Func<IOrderTransactionContext, CancellationToken, Task>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns<Guid,
+                     Func<IOrderTransactionContext, CancellationToken, Task>,
+                     CancellationToken>(
+                (_, operation, ct) =>
+                    operation(transactionContextMock.Object, ct));
 
-            var handler = new PayOrderCommandHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        var handler = new PayOrderCommandHandler(
+            transactionExecutorMock.Object);
 
-            var command = new PayOrderCommand(Guid.NewGuid());
+        var command = new PayOrderCommand(order.Id);
 
-            // Act
-            Func<Task> act = () => handler.Handle(command, CancellationToken.None);
+        // Act
+        await handler.Handle(command, CancellationToken.None);
 
-            // Assert
-            await act.Should().ThrowAsync<DomainException>().WithMessage("Order not found.");
+        // Assert
+        order.Status.Should().Be(OrderStatus.PAID);
+        saga.Status.Should().Be(EOrderSagaStatus.COMPLETED);
 
-            unitOfWorkMock.Verify(unitOfWork => unitOfWork.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
-        }
+        transactionExecutorMock.Verify(
+            executor => executor.ExecuteAsync(
+                order.Id,
+                It.IsAny<Func<IOrderTransactionContext, CancellationToken, Task>>(),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+
+        unitOfWorkMock.Verify(
+            unitOfWork => unitOfWork.SaveChangesAsync(
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task Should_Throw_DomainException_When_Order_Does_Not_Exist()
+    {
+        // Arrange
+        var orderId = Guid.NewGuid();
+
+        var saga = new OrderSaga(orderId);
+        saga.MarkPaymentCompleted();
+        saga.MarkInventoryReserved();
+
+        var repositoryMock = new Mock<IOrderRepository>();
+        var sagaRepositoryMock = new Mock<IOrderSagaRepository>();
+        var unitOfWorkMock = new Mock<IUnitOfWork>();
+        var transactionContextMock = new Mock<IOrderTransactionContext>();
+        var transactionExecutorMock = new Mock<IOrderTransactionExecutor>();
+
+        repositoryMock
+            .Setup(repository => repository.GetByIdAsync(
+                orderId,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Order?)null);
+
+        sagaRepositoryMock
+            .Setup(repository => repository.GetByOrderIdAsync(
+                orderId,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(saga);
+
+        transactionContextMock
+            .SetupGet(context => context.Orders)
+            .Returns(repositoryMock.Object);
+
+        transactionContextMock
+            .SetupGet(context => context.OrderSagas)
+            .Returns(sagaRepositoryMock.Object);
+
+        transactionContextMock
+            .SetupGet(context => context.UnitOfWork)
+            .Returns(unitOfWorkMock.Object);
+
+        transactionExecutorMock
+            .Setup(executor => executor.ExecuteAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<Func<IOrderTransactionContext, CancellationToken, Task>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns<Guid,
+                     Func<IOrderTransactionContext, CancellationToken, Task>,
+                     CancellationToken>(
+                (_, operation, ct) =>
+                    operation(transactionContextMock.Object, ct));
+
+        var handler = new PayOrderCommandHandler(
+            transactionExecutorMock.Object);
+
+        var command = new PayOrderCommand(orderId);
+
+        // Act
+        Func<Task> act = () =>
+            handler.Handle(command, CancellationToken.None);
+
+        // Assert
+        await act.Should()
+            .ThrowAsync<DomainException>()
+            .WithMessage("Order not found.");
+
+        unitOfWorkMock.Verify(
+            unitOfWork => unitOfWork.SaveChangesAsync(
+                It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 }

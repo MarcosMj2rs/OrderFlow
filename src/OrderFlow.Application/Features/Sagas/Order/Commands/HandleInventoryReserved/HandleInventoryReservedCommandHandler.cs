@@ -1,4 +1,5 @@
-﻿using MediatR;
+﻿
+using MediatR;
 using OrderFlow.Application.Abstractions.Persistence;
 using OrderFlow.Application.Features.Orders.Commands.PayOrder;
 using OrderFlow.Domain.Enumerations;
@@ -11,40 +12,64 @@ public sealed class HandleInventoryReservedCommandHandler
     : IRequestHandler<HandleInventoryReservedCommand>
 {
     private readonly IOrderSagaRepository _orderSagaRepository;
+    private readonly IOrderRepository _orderRepository;
+    private readonly IOrderTransactionExecutor _transactionExecutor;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ISender _sender;
 
-    public HandleInventoryReservedCommandHandler(IOrderSagaRepository orderSagaRepository, IUnitOfWork unitOfWork, ISender sender)
+    public HandleInventoryReservedCommandHandler(IOrderSagaRepository orderSagaRepository,
+                                                 IOrderRepository orderRepository,
+                                                 IOrderTransactionExecutor transactionExecutor,
+                                                 IUnitOfWork unitOfWork,
+                                                 ISender sender)
     {
         _orderSagaRepository = orderSagaRepository;
+        _orderRepository = orderRepository;
+        _transactionExecutor = transactionExecutor;
         _unitOfWork = unitOfWork;
         _sender = sender;
     }
 
     public async Task Handle(HandleInventoryReservedCommand request, CancellationToken cancellationToken)
     {
-        var orderSaga = await _orderSagaRepository.GetByOrderIdAsync(request.OrderId, cancellationToken);
+        var shouldPayOrder = false;
 
-        if (orderSaga is null)
-            throw new DomainException($"Order saga for order '{request.OrderId}' was not found.");
+        // Fase 1: avançar a Saga sob bloqueio transacional.
+        await _transactionExecutor.ExecuteAsync(
+            request.OrderId,
+            async ct =>
+            {
+                var saga = await _orderSagaRepository
+                    .GetByOrderIdAsync(request.OrderId, ct);
 
-        if (orderSaga.Status == EOrderSagaStatus.COMPLETED)
+                if (saga is null)
+                    throw new DomainException($"Order saga for order '{request.OrderId}' was not found.");
+
+                if (saga.Status is
+                    EOrderSagaStatus.COMPENSATING or
+                    EOrderSagaStatus.COMPENSATED or
+                    EOrderSagaStatus.COMPLETED)
+                {
+                    return;
+                }
+
+                if (saga.Status == EOrderSagaStatus.PAYMENT_COMPLETED)
+                {
+                    saga.MarkInventoryReserved();
+                    await _unitOfWork.SaveChangesAsync(ct);
+                }
+
+                if (saga.Status != EOrderSagaStatus.INVENTORY_RESERVED)
+                    throw new DomainException($"Order saga '{request.OrderId}' cannot process inventory reservation from status '{saga.Status}'.");
+
+                shouldPayOrder = true;
+            },
+            cancellationToken);
+
+        if (!shouldPayOrder)
             return;
 
-        if (orderSaga.Status == EOrderSagaStatus.PAYMENT_COMPLETED)
-        {
-            orderSaga.MarkInventoryReserved();
-
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-        }
-
-        if (orderSaga.Status != EOrderSagaStatus.INVENTORY_RESERVED)
-            throw new DomainException($"Order saga '{request.OrderId}' cannot process inventory reservation from status '{orderSaga.Status}'.");
-
+        // Fase 2: PayOrderCommand possui seu próprio bloqueio.
         await _sender.Send(new PayOrderCommand(request.OrderId), cancellationToken);
-
-        orderSaga.Complete();
-
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 }

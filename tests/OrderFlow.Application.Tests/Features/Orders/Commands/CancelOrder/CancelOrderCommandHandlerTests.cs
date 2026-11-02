@@ -1,66 +1,258 @@
-﻿using FluentAssertions;
+﻿
+using FluentAssertions;
 using Moq;
 using OrderFlow.Application.Abstractions.Persistence;
+using OrderFlow.Application.Abstractions.Sagas;
 using OrderFlow.Application.Features.Orders.Commands.CancelOrder;
 using OrderFlow.Domain.Entities;
 using OrderFlow.Domain.Enumerations;
 using OrderFlow.Domain.Exceptions;
 using OrderFlow.Domain.Repositories;
 
-namespace OrderFlow.Application.Tests.Features.Orders.Commands.CancelOrder
+namespace OrderFlow.Application.Tests.Features.Orders.Commands.CancelOrder;
+
+public sealed class CancelOrderCommandHandlerTests
 {
-    public sealed class CancelOrderCommandHandlerTests
+    private readonly Mock<IOrderRepository> _orderRepositoryMock = new();
+    private readonly Mock<IOrderSagaRepository> _sagaRepositoryMock = new();
+    private readonly Mock<IOrderSagaOrchestrator> _orchestratorMock = new();
+    private readonly Mock<IOrderTransactionExecutor> _transactionExecutorMock = new();
+    private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
+
+    public CancelOrderCommandHandlerTests()
     {
-        [Fact]
-        public async Task Should_Cancel_Order_When_Order_Exists()
-        {
-            // Arrange
-            var order = new Order(Guid.NewGuid(), Guid.NewGuid(), quantity: 1, unitPrice: 100m);
+        // Executa efetivamente o callback transacional.
+        _transactionExecutorMock
+            .Setup(executor => executor.ExecuteAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<Func<CancellationToken, Task>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns<Guid, Func<CancellationToken, Task>, CancellationToken>(
+                (_, operation, ct) => operation(ct));
+    }
 
-            var repositoryMock = new Mock<IOrderRepository>();
-            var unitOfWorkMock = new Mock<IUnitOfWork>();
+    private CancelOrderCommandHandler CreateHandler()
+    {
+        return new CancelOrderCommandHandler(
+            _orderRepositoryMock.Object,
+            _sagaRepositoryMock.Object,
+            _orchestratorMock.Object,
+            _transactionExecutorMock.Object,
+            _unitOfWorkMock.Object);
+    }
 
-            repositoryMock.Setup(repository => repository
-                .GetByIdAsync(order.Id, It.IsAny<CancellationToken>()))
-                .ReturnsAsync(order);
+    [Fact]
+    public async Task Should_Cancel_Order_When_Order_Exists_Without_Saga()
+    {
+        // Arrange
+        var order = new Order(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            quantity: 1,
+            unitPrice: 100m);
 
-            var handler = new CancelOrderCommandHandler(repositoryMock.Object, unitOfWorkMock.Object);
+        _orderRepositoryMock
+            .Setup(repository => repository.GetByIdAsync(
+                order.Id,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(order);
 
-            var command = new CancelOrderCommand(order.Id);
+        _sagaRepositoryMock
+            .Setup(repository => repository.GetByOrderIdAsync(
+                order.Id,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((OrderSaga?)null);
 
-            // Act
-            await handler.Handle(command, CancellationToken.None);
+        var handler = CreateHandler();
 
-            // Assert
-            order.Status.Should().Be(OrderStatus.CANCELLED);
+        // Act
+        await handler.Handle(
+            new CancelOrderCommand(order.Id),
+            CancellationToken.None);
 
-            unitOfWorkMock.Verify(unitOfWork => unitOfWork.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
-        }
+        // Assert
+        order.Status.Should().Be(OrderStatus.CANCELLED);
 
-        [Fact]
-        public async Task Should_Throw_DomainException_When_Order_Does_Not_Exist()
-        {
-            // Arrange
-            var repositoryMock = new Mock<IOrderRepository>();
-            var unitOfWorkMock = new Mock<IUnitOfWork>();
+        _unitOfWorkMock.Verify(
+            unitOfWork => unitOfWork.SaveChangesAsync(
+                It.IsAny<CancellationToken>()),
+            Times.Once);
 
-            repositoryMock
-                .Setup(repository => repository.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync((Order?)null);
+        _orchestratorMock.Verify(
+            orchestrator => orchestrator.CancelAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
 
-            var handler = new CancelOrderCommandHandler(repositoryMock.Object, unitOfWorkMock.Object);
+    [Fact]
+    public async Task Should_Throw_DomainException_When_Order_Does_Not_Exist()
+    {
+        // Arrange
+        var orderId = Guid.NewGuid();
 
-            var command = new CancelOrderCommand(Guid.NewGuid());
+        _orderRepositoryMock
+            .Setup(repository => repository.GetByIdAsync(
+                orderId,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Order?)null);
 
-            // Act
-            var act = () => handler.Handle(command, CancellationToken.None);
+        var handler = CreateHandler();
 
-            // Assert
-            await act.Should()
-                .ThrowAsync<DomainException>()
-                .WithMessage("Order not found.");
+        // Act
+        Func<Task> act = () => handler.Handle(
+            new CancelOrderCommand(orderId),
+            CancellationToken.None);
 
-            unitOfWorkMock.Verify(unitOfWork => unitOfWork.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
-        }
+        // Assert
+        await act.Should()
+            .ThrowAsync<DomainException>()
+            .WithMessage("Order not found.");
+
+        _unitOfWorkMock.Verify(
+            unitOfWork => unitOfWork.SaveChangesAsync(
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+
+        _orchestratorMock.Verify(
+            orchestrator => orchestrator.CancelAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task Should_Delegate_Cancellation_To_Orchestrator_When_Saga_Exists()
+    {
+        // Arrange
+        var order = new Order(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            quantity: 1,
+            unitPrice: 100m);
+
+        var saga = new OrderSaga(order.Id);
+
+        _orderRepositoryMock
+            .Setup(repository => repository.GetByIdAsync(
+                order.Id,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(order);
+
+        _sagaRepositoryMock
+            .Setup(repository => repository.GetByOrderIdAsync(
+                order.Id,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(saga);
+
+        var handler = CreateHandler();
+
+        // Act
+        await handler.Handle(
+            new CancelOrderCommand(order.Id),
+            CancellationToken.None);
+
+        // Assert
+        _orchestratorMock.Verify(
+            orchestrator => orchestrator.CancelAsync(
+                order.Id,
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+
+        // O Handler delega; não cancela diretamente.
+        order.Status.Should().Be(OrderStatus.PENDING);
+
+        _unitOfWorkMock.Verify(
+            unitOfWork => unitOfWork.SaveChangesAsync(
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task Should_Not_Cancel_Again_When_Order_Is_Already_Cancelled_Without_Saga()
+    {
+        // Arrange
+        var order = new Order(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            quantity: 1,
+            unitPrice: 100m);
+
+        order.Cancel();
+
+        _orderRepositoryMock
+            .Setup(repository => repository.GetByIdAsync(
+                order.Id,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(order);
+
+        _sagaRepositoryMock
+            .Setup(repository => repository.GetByOrderIdAsync(
+                order.Id,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((OrderSaga?)null);
+
+        var handler = CreateHandler();
+
+        // Act
+        await handler.Handle(
+            new CancelOrderCommand(order.Id),
+            CancellationToken.None);
+
+        // Assert
+        order.Status.Should().Be(OrderStatus.CANCELLED);
+
+        _unitOfWorkMock.Verify(
+            unitOfWork => unitOfWork.SaveChangesAsync(
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+
+        _orchestratorMock.Verify(
+            orchestrator => orchestrator.CancelAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task Should_Reject_Paid_Order_Without_Saga()
+    {
+        // Arrange
+        var order = new Order(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            quantity: 1,
+            unitPrice: 100m);
+
+        order.Pay();
+
+        _orderRepositoryMock
+            .Setup(repository => repository.GetByIdAsync(
+                order.Id,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(order);
+
+        _sagaRepositoryMock
+            .Setup(repository => repository.GetByOrderIdAsync(
+                order.Id,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((OrderSaga?)null);
+
+        var handler = CreateHandler();
+
+        // Act
+        Func<Task> act = () => handler.Handle(
+            new CancelOrderCommand(order.Id),
+            CancellationToken.None);
+
+        // Assert
+        await act.Should().ThrowAsync<DomainException>();
+
+        order.Status.Should().Be(OrderStatus.PAID);
+
+        _unitOfWorkMock.Verify(
+            unitOfWork => unitOfWork.SaveChangesAsync(
+                It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 }

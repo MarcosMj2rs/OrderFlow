@@ -9,6 +9,7 @@ using OrderFlow.Infrastructure.Persistence.DomainEvents;
 using OrderFlow.Infrastructure.Persistence.Inbox;
 using OrderFlow.Infrastructure.Persistence.Outbox;
 using OrderFlow.Infrastructure.Persistence.Repositories;
+using OrderFlow.Infrastructure.Persistence.Transactions;
 using OrderFlow.Infrastructure.Persistence.UnitOfWork;
 using System.Diagnostics;
 
@@ -79,6 +80,9 @@ public static class PersistenceDependencyInjection
         services.AddSingleton<IOutboxEventTypeRegistry, OutboxEventTypeRegistry>();
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+        services.AddScoped<IOrderTransactionContext, OrderTransactionContext>();
+        services.AddScoped<IOrderTransactionExecutor, OrderTransactionExecutor>();
+
         return services;
     }
 }

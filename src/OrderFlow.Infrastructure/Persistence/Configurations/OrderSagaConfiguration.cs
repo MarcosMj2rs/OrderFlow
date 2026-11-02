@@ -17,7 +17,8 @@ public sealed class OrderSagaConfiguration : IEntityTypeConfiguration<OrderSaga>
 
         builder.Property(x => x.Status)
                .HasConversion<int>()
-               .IsRequired();
+               .IsRequired()
+               .IsConcurrencyToken();
 
         builder.Property(x => x.StartedAt)
                .HasColumnType("datetime2")

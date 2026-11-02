@@ -94,9 +94,13 @@ namespace OrderFlow.Domain.Tests.Entities
             // Act
             var order = new Order(customerId, productId, quantity: 2, unitPrice: 100m);
 
+            order.RegisterCreatedEvent();
+
             // Assert
             order.DomainEvents.Should().ContainSingle();
+
             var domainEvent = order.DomainEvents.Single();
+
             domainEvent.Should().BeOfType<OrderCreatedDomainEvent>();
         }
 

@@ -14,9 +14,17 @@ public sealed class OrderSagaRepository : IOrderSagaRepository
         _dbContext = dbContext;
     }
 
+
     public async Task<OrderSaga?> GetByOrderIdAsync(Guid orderId, CancellationToken cancellationToken = default)
     {
-        return await _dbContext.OrderSagas.FirstOrDefaultAsync(saga => saga.OrderId == orderId, cancellationToken);
+        var orderSaga = await _dbContext.OrderSagas.FirstOrDefaultAsync(saga => saga.OrderId == orderId, cancellationToken);
+
+        if (orderSaga is null)
+            return null;
+
+        await _dbContext.Entry(orderSaga).ReloadAsync(cancellationToken);
+
+        return orderSaga;
     }
 
     public async Task AddAsync(OrderSaga orderSaga, CancellationToken cancellationToken = default)

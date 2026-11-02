@@ -6,4 +6,6 @@
 public interface IOrderSagaOrchestrator
 {
     Task StartAsync(Guid orderId, CancellationToken cancellationToken = default);
+
+    Task CancelAsync(Guid orderId, CancellationToken cancellationToken = default);
 }

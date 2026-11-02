@@ -57,13 +57,18 @@ public sealed class OrderSaga : Entity
 
     public void StartCompensation()
     {
-        if (Status != EOrderSagaStatus.PAYMENT_COMPLETED &&
+        if (Status == EOrderSagaStatus.COMPENSATING)
+            return;
+
+        if (Status != EOrderSagaStatus.STARTED &&
+            Status != EOrderSagaStatus.PAYMENT_COMPLETED &&
             Status != EOrderSagaStatus.INVENTORY_RESERVED)
-            throw new DomainException("Saga can only start compensation after payment is completed.");
+        {
+            throw new DomainException("Saga cannot start compensation from its current state.");
+        }
 
         Status = EOrderSagaStatus.COMPENSATING;
     }
-
     public void MarkCompensated()
     {
         if (Status != EOrderSagaStatus.COMPENSATING)
